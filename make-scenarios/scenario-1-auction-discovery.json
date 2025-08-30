@@ -1,0 +1,189 @@
+{
+  "scenario": {
+    "name": "Scenario 1: Auction Discovery & Research",
+    "description": "Automated discovery and initial filtering of viable auction items",
+    "modules": [
+      {
+        "id": 1,
+        "module": "gateway:CustomTrigger",
+        "name": "Auction Research Timer",
+        "version": 1,
+        "parameters": {
+          "type": "schedule",
+          "schedule": {
+            "interval": 30,
+            "unit": "minutes",
+            "startTime": "06:00",
+            "endTime": "23:00",
+            "timezone": "America/New_York",
+            "days": [1, 2, 3, 4, 5, 6, 7]
+          }
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 100,
+            "y": 100
+          }
+        }
+      },
+      {
+        "id": 2,
+        "module": "http:ActionSendData",
+        "name": "eBay Auction Search",
+        "version": 3,
+        "parameters": {
+          "handleErrors": false,
+          "url": "https://api.ebay.com/buy/browse/v1/item_summary/search",
+          "method": "GET",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ebay_token}}"
+            },
+            {
+              "name": "X-EBAY-C-MARKETPLACE-ID",
+              "value": "EBAY_US"
+            }
+          ],
+          "qs": [
+            {
+              "name": "q",
+              "value": "(electronics,collectibles,branded) -parts -repair"
+            },
+            {
+              "name": "filter",
+              "value": "conditionIds:{1000|1500|2000},price:[10..500],endDateFrom:{{now}},endDateTo:{{addHours(now; 24)}}"
+            },
+            {
+              "name": "sort",
+              "value": "EndTimeSoonest"
+            },
+            {
+              "name": "limit",
+              "value": "50"
+            }
+          ]
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 300,
+            "y": 100
+          }
+        }
+      },
+      {
+        "id": 3,
+        "module": "json:ParseJSON",
+        "name": "Parse eBay Results",
+        "version": 1,
+        "parameters": {},
+        "mapper": {
+          "json": "{{2.data}}"
+        },
+        "metadata": {
+          "designer": {
+            "x": 500,
+            "y": 100
+          }
+        }
+      },
+      {
+        "id": 4,
+        "module": "gateway:Iterator",
+        "name": "Iterate Items",
+        "version": 1,
+        "parameters": {},
+        "mapper": {
+          "array": "{{3.itemSummaries}}"
+        },
+        "metadata": {
+          "designer": {
+            "x": 700,
+            "y": 100
+          }
+        }
+      },
+      {
+        "id": 5,
+        "module": "gateway:Filter",
+        "name": "Filter Quality Items",
+        "version": 1,
+        "parameters": {},
+        "filter": {
+          "conditions": [
+            [
+              {
+                "a": "{{4.sellerFeedbackPercentage}}",
+                "o": "number:greater",
+                "b": "95"
+              }
+            ],
+            [
+              {
+                "a": "{{4.currentPrice.value}}",
+                "o": "number:less",
+                "b": "500"
+              }
+            ],
+            [
+              {
+                "a": "{{4.shippingOptions}}",
+                "o": "exist"
+              }
+            ],
+            [
+              {
+                "a": "{{4.condition}}",
+                "o": "text:notequal",
+                "b": "For parts or not working"
+              }
+            ]
+          ]
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 900,
+            "y": 100
+          }
+        }
+      }
+    ],
+    "metadata": {
+      "version": 1,
+      "scenario": {
+        "roundtrips": 1,
+        "maxErrors": 3,
+        "autoCommit": true,
+        "autoCommitTriggerLast": true,
+        "sequential": false,
+        "confidential": false,
+        "dataloss": false,
+        "dlq": false
+      },
+      "designer": {
+        "orphans": []
+      }
+    }
+  },
+  "variables": [
+    {
+      "name": "ebay_token",
+      "value": "{{config.ebay.auth_token}}",
+      "type": "string"
+    }
+  ],
+  "settings": {
+    "errorHandling": {
+      "mode": "sequential",
+      "maxConsecutiveErrors": 5,
+      "autoDeactivate": true
+    },
+    "scheduling": {
+      "enabled": true,
+      "mode": "interval"
+    }
+  }
+}
