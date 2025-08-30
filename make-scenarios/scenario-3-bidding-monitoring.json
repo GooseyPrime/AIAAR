@@ -1,0 +1,328 @@
+{
+  "scenario": {
+    "name": "Scenario 3: Bidding & Monitoring",
+    "description": "Strategic bidding system with real-time monitoring and automated bid placement",
+    "modules": [
+      {
+        "id": 13,
+        "module": "airtable:ActionCreateRecord",
+        "name": "Add to Watch List",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Target Items"
+        },
+        "mapper": {
+          "record": {
+            "itemId": "{{itemId}}",
+            "title": "{{title}}",
+            "currentPrice": "{{currentPrice.value}}",
+            "maxBid": "{{max_bid}}",
+            "endTime": "{{itemEndDate}}",
+            "profitPotential": "{{profit_calculator.result}}",
+            "status": "Monitoring",
+            "ebayUrl": "{{itemWebUrl}}",
+            "brand": "{{ai_analysis.brand}}",
+            "condition": "{{condition}}",
+            "sellerFeedback": "{{sellerFeedbackPercentage}}"
+          }
+        },
+        "metadata": {
+          "designer": {
+            "x": 100,
+            "y": 300
+          }
+        }
+      },
+      {
+        "id": 14,
+        "module": "gateway:CustomTrigger",
+        "name": "Bidding Monitor",
+        "version": 1,
+        "parameters": {
+          "type": "schedule",
+          "schedule": {
+            "interval": 5,
+            "unit": "minutes",
+            "timezone": "America/New_York"
+          }
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 300,
+            "y": 300
+          }
+        }
+      },
+      {
+        "id": 15,
+        "module": "airtable:ActionSearchRecords",
+        "name": "Get Active Targets",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Target Items",
+          "formula": "AND({Status} = 'Monitoring', {End Time} > NOW())"
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 500,
+            "y": 300
+          }
+        }
+      },
+      {
+        "id": 16,
+        "module": "gateway:Iterator",
+        "name": "Iterate Active Items",
+        "version": 1,
+        "parameters": {},
+        "mapper": {
+          "array": "{{15.records}}"
+        },
+        "metadata": {
+          "designer": {
+            "x": 700,
+            "y": 300
+          }
+        }
+      },
+      {
+        "id": 17,
+        "module": "http:ActionSendData",
+        "name": "Check Current Auction Status",
+        "version": 3,
+        "parameters": {
+          "handleErrors": false,
+          "url": "https://api.ebay.com/buy/browse/v1/item/{{16.fields.itemId}}",
+          "method": "GET",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ebay_token}}"
+            },
+            {
+              "name": "X-EBAY-C-MARKETPLACE-ID",
+              "value": "EBAY_US"
+            }
+          ]
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 900,
+            "y": 300
+          }
+        }
+      },
+      {
+        "id": 18,
+        "module": "gateway:Router",
+        "name": "Bidding Strategy Router",
+        "version": 1,
+        "parameters": {
+          "mapper": {},
+          "routes": [
+            {
+              "name": "More than 2 hours remaining",
+              "condition": {
+                "conditions": [
+                  [
+                    {
+                      "a": "{{parseDate(17.data.itemEndDate)}}",
+                      "o": "date:greater",
+                      "b": "{{addHours(now; 2)}}"
+                    }
+                  ]
+                ]
+              }
+            },
+            {
+              "name": "30min - 2 hours remaining",
+              "condition": {
+                "conditions": [
+                  [
+                    {
+                      "a": "{{parseDate(17.data.itemEndDate)}}",
+                      "o": "date:between",
+                      "b": "{{addMinutes(now; 30)}},{{addHours(now; 2)}}"
+                    }
+                  ]
+                ]
+              }
+            },
+            {
+              "name": "Final 30 minutes",
+              "condition": {
+                "conditions": [
+                  [
+                    {
+                      "a": "{{parseDate(17.data.itemEndDate)}}",
+                      "o": "date:less",
+                      "b": "{{addMinutes(now; 30)}}"
+                    }
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        "metadata": {
+          "designer": {
+            "x": 1100,
+            "y": 300
+          }
+        }
+      },
+      {
+        "id": 19,
+        "module": "math:Evaluator",
+        "name": "Calculate Conservative Bid",
+        "version": 1,
+        "parameters": {},
+        "mapper": {
+          "expression": "{{multiply(max_bid; 0.6)}}",
+          "variables": [
+            {
+              "name": "max_bid",
+              "value": "{{16.fields.maxBid}}"
+            }
+          ]
+        },
+        "metadata": {
+          "designer": {
+            "x": 1300,
+            "y": 250
+          }
+        }
+      },
+      {
+        "id": 20,
+        "module": "math:Evaluator",
+        "name": "Calculate Aggressive Bid",
+        "version": 1,
+        "parameters": {},
+        "mapper": {
+          "expression": "{{multiply(max_bid; 0.9)}}",
+          "variables": [
+            {
+              "name": "max_bid",
+              "value": "{{16.fields.maxBid}}"
+            }
+          ]
+        },
+        "metadata": {
+          "designer": {
+            "x": 1300,
+            "y": 350
+          }
+        }
+      },
+      {
+        "id": 21,
+        "module": "http:ActionSendData",
+        "name": "Place eBay Bid",
+        "version": 3,
+        "parameters": {
+          "handleErrors": true,
+          "url": "https://api.ebay.com/ws/api.dll",
+          "method": "POST",
+          "headers": [
+            {
+              "name": "X-EBAY-API-SITEID",
+              "value": "0"
+            },
+            {
+              "name": "X-EBAY-API-CALL-NAME",
+              "value": "PlaceBid"
+            },
+            {
+              "name": "X-EBAY-API-VERSION",
+              "value": "967"
+            },
+            {
+              "name": "Content-Type",
+              "value": "text/xml"
+            }
+          ]
+        },
+        "mapper": {
+          "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<PlaceBidRequest xmlns=\"urn:ebay:apis:eBLBaseComponents\">\n  <RequesterCredentials>\n    <eBayAuthToken>{{ebay_auth_token}}</eBayAuthToken>\n  </RequesterCredentials>\n  <ItemID>{{16.fields.itemId}}</ItemID>\n  <Bid>\n    <Amount>{{bid_amount}}</Amount>\n  </Bid>\n</PlaceBidRequest>",
+          "bid_amount": "{{if(18.routeName = 'Final 30 minutes'; 20.result; 19.result)}}"
+        },
+        "metadata": {
+          "designer": {
+            "x": 1500,
+            "y": 300
+          }
+        }
+      },
+      {
+        "id": 22,
+        "module": "airtable:ActionUpdateRecord",
+        "name": "Update Bid Status",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Target Items"
+        },
+        "mapper": {
+          "record": {
+            "id": "{{16.id}}",
+            "lastBidAmount": "{{21.bid_amount}}",
+            "lastBidTime": "{{now}}",
+            "currentPrice": "{{17.data.currentPrice.value}}"
+          }
+        },
+        "metadata": {
+          "designer": {
+            "x": 1700,
+            "y": 300
+          }
+        }
+      }
+    ],
+    "metadata": {
+      "version": 1,
+      "scenario": {
+        "roundtrips": 1,
+        "maxErrors": 3,
+        "autoCommit": true,
+        "autoCommitTriggerLast": true,
+        "sequential": false,
+        "confidential": false,
+        "dataloss": false,
+        "dlq": false
+      },
+      "designer": {
+        "orphans": []
+      }
+    }
+  },
+  "variables": [
+    {
+      "name": "ebay_token",
+      "value": "{{config.ebay.auth_token}}",
+      "type": "string"
+    },
+    {
+      "name": "ebay_auth_token",
+      "value": "{{config.ebay.auth_token}}",
+      "type": "string"
+    }
+  ],
+  "settings": {
+    "errorHandling": {
+      "mode": "sequential",
+      "maxConsecutiveErrors": 3,
+      "autoDeactivate": false
+    },
+    "safetyLimits": {
+      "maxDailySpending": 200,
+      "maxBidPerItem": 100,
+      "minSellerFeedback": 95
+    }
+  }
+}

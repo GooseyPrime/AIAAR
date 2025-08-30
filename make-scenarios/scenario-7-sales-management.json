@@ -1,0 +1,250 @@
+{
+  "scenario": {
+    "name": "Scenario 7: Sales Management",
+    "description": "Automated processing of sales, shipping label generation, and customer communication",
+    "modules": [
+      {
+        "id": 53,
+        "module": "gateway:WebhookTrigger",
+        "name": "Item Sold Notification",
+        "version": 1,
+        "parameters": {
+          "hook": "{{config.make.webhook_base_url}}/item-sold"
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 100,
+            "y": 800
+          }
+        }
+      },
+      {
+        "id": 54,
+        "module": "airtable:ActionSearchRecords",
+        "name": "Find Sold Item",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Target Items",
+          "formula": "AND({Listing ID} = '{{webhook.item_id}}', {Status} = 'Listed')"
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 300,
+            "y": 800
+          }
+        }
+      },
+      {
+        "id": 55,
+        "module": "airtable:ActionUpdateRecord",
+        "name": "Mark as Sold",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Target Items"
+        },
+        "mapper": {
+          "record": {
+            "id": "{{54.records[1].id}}",
+            "status": "Sold",
+            "salePrice": "{{webhook.sale_price}}",
+            "saleDate": "{{now}}",
+            "buyer": "{{webhook.buyer_username}}",
+            "buyerAddress": "{{webhook.buyer_address}}",
+            "finalProfit": "{{subtract(webhook.sale_price; add(54.records[1].fields.finalPrice; 12; multiply(webhook.sale_price; 0.13); multiply(webhook.sale_price; 0.03)))}}"
+          }
+        },
+        "metadata": {
+          "designer": {
+            "x": 500,
+            "y": 800
+          }
+        }
+      },
+      {
+        "id": 56,
+        "module": "airtable:ActionUpdateRecord",
+        "name": "Update Inventory Sale",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Inventory"
+        },
+        "mapper": {
+          "record": {
+            "itemId": ["{{54.records[1].id}}"],
+            "salePrice": "{{webhook.sale_price}}",
+            "saleDate": "{{now}}",
+            "buyerInfo": "{{webhook.buyer_username}} - {{webhook.buyer_address}}"
+          }
+        },
+        "metadata": {
+          "designer": {
+            "x": 700,
+            "y": 800
+          }
+        }
+      },
+      {
+        "id": 57,
+        "module": "shipstation:ActionCreateLabel",
+        "name": "Generate Shipping Label",
+        "version": 1,
+        "parameters": {
+          "serviceCode": "usps_priority_mail",
+          "packageCode": "package"
+        },
+        "mapper": {
+          "orderNumber": "{{webhook.item_id}}",
+          "shipTo": {
+            "name": "{{webhook.buyer_name}}",
+            "street1": "{{webhook.buyer_address.street1}}",
+            "street2": "{{webhook.buyer_address.street2}}",
+            "city": "{{webhook.buyer_address.city}}",
+            "state": "{{webhook.buyer_address.state}}",
+            "postalCode": "{{webhook.buyer_address.postal_code}}",
+            "country": "{{webhook.buyer_address.country}}"
+          },
+          "weight": {
+            "value": 1,
+            "units": "pounds"
+          },
+          "dimensions": {
+            "length": 12,
+            "width": 9,
+            "height": 6,
+            "units": "inches"
+          },
+          "insuranceOptions": {
+            "provider": "carrier",
+            "insureShipment": "{{if(webhook.sale_price > 100; true; false)}}",
+            "insuredValue": "{{webhook.sale_price}}"
+          }
+        },
+        "metadata": {
+          "designer": {
+            "x": 900,
+            "y": 800
+          }
+        }
+      },
+      {
+        "id": 58,
+        "module": "airtable:ActionUpdateRecord",
+        "name": "Update Shipping Info",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Target Items"
+        },
+        "mapper": {
+          "record": {
+            "id": "{{54.records[1].id}}",
+            "outboundTrackingNumber": "{{57.trackingNumber}}",
+            "shippingLabelUrl": "{{57.labelData.labelUrl}}",
+            "shippingCost": "{{57.shipmentCost}}",
+            "shippedDate": "{{now}}"
+          }
+        },
+        "metadata": {
+          "designer": {
+            "x": 1100,
+            "y": 800
+          }
+        }
+      },
+      {
+        "id": 59,
+        "module": "ebay:ActionSendMessage",
+        "name": "Send Tracking to Buyer",
+        "version": 1,
+        "parameters": {},
+        "mapper": {
+          "recipientId": "{{webhook.buyer_username}}",
+          "subject": "Your item has shipped!",
+          "messageText": "Hello {{webhook.buyer_name}},\n\nThank you for your purchase! Your item has been shipped and is on its way.\n\nShipping Details:\n📦 Tracking Number: {{57.trackingNumber}}\n🚚 Carrier: USPS Priority Mail\n📅 Shipped Date: {{formatDate(now; 'MM/DD/YYYY')}}\n\nYou can track your package at: https://tools.usps.com/go/TrackConfirmAction?qtc_tLabels1={{57.trackingNumber}}\n\nThank you for your business!\n\nBest regards,\nAutomated Auction Assistant"
+        },
+        "metadata": {
+          "designer": {
+            "x": 1300,
+            "y": 800
+          }
+        }
+      },
+      {
+        "id": 60,
+        "module": "slack:ActionSendMessage",
+        "name": "Sale Success Notification",
+        "version": 1,
+        "parameters": {
+          "channel": "#auction-alerts"
+        },
+        "mapper": {
+          "text": "💰 SALE COMPLETED! 🎉\n📋 Item: {{54.records[1].fields.title}}\n💵 Sale Price: ${{webhook.sale_price}}\n📊 Profit: ${{55.finalProfit}}\n👤 Buyer: {{webhook.buyer_username}}\n📦 Tracking: {{57.trackingNumber}}\n🚀 ROI: {{round(divide(55.finalProfit; 54.records[1].fields.finalPrice) * 100; 1)}}%"
+        },
+        "metadata": {
+          "designer": {
+            "x": 1500,
+            "y": 800
+          }
+        }
+      }
+    ],
+    "metadata": {
+      "version": 1,
+      "scenario": {
+        "roundtrips": 1,
+        "maxErrors": 3,
+        "autoCommit": true,
+        "autoCommitTriggerLast": true,
+        "sequential": false,
+        "confidential": false,
+        "dataloss": false,
+        "dlq": false
+      },
+      "designer": {
+        "orphans": []
+      }
+    }
+  },
+  "webhooks": [
+    {
+      "name": "item-sold",
+      "url": "{{config.make.webhook_base_url}}/item-sold",
+      "method": "POST",
+      "expectedData": {
+        "item_id": "string",
+        "sale_price": "number",
+        "buyer_username": "string",
+        "buyer_name": "string",
+        "buyer_address": {
+          "street1": "string",
+          "street2": "string",
+          "city": "string",
+          "state": "string",
+          "postal_code": "string",
+          "country": "string"
+        }
+      }
+    }
+  ],
+  "settings": {
+    "shipping": {
+      "defaultService": "usps_priority_mail",
+      "insuranceThreshold": 100,
+      "defaultWeight": 1,
+      "defaultDimensions": {
+        "length": 12,
+        "width": 9,
+        "height": 6
+      }
+    },
+    "messaging": {
+      "autoSendTracking": true,
+      "messageTemplate": "professional"
+    }
+  }
+}

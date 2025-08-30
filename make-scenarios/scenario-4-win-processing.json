@@ -1,0 +1,249 @@
+{
+  "scenario": {
+    "name": "Scenario 4: Win Processing & Inventory",
+    "description": "Automated processing of won auctions, payment handling, and inventory management",
+    "modules": [
+      {
+        "id": 23,
+        "module": "gateway:WebhookTrigger",
+        "name": "Auction Won Notification",
+        "version": 1,
+        "parameters": {
+          "hook": "{{config.make.webhook_base_url}}/auction-won"
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 100,
+            "y": 400
+          }
+        }
+      },
+      {
+        "id": 24,
+        "module": "airtable:ActionUpdateRecord",
+        "name": "Mark as Won",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Target Items"
+        },
+        "mapper": {
+          "record": {
+            "id": "{{webhook.record_id}}",
+            "status": "Won",
+            "finalPrice": "{{webhook.final_price}}",
+            "winDate": "{{now}}",
+            "seller": "{{webhook.seller_username}}"
+          }
+        },
+        "metadata": {
+          "designer": {
+            "x": 300,
+            "y": 400
+          }
+        }
+      },
+      {
+        "id": 25,
+        "module": "gateway:Filter",
+        "name": "Payment Required Filter",
+        "version": 1,
+        "parameters": {},
+        "filter": {
+          "conditions": [
+            [
+              {
+                "a": "{{webhook.payment_required}}",
+                "o": "boolean:equal",
+                "b": "true"
+              }
+            ],
+            [
+              {
+                "a": "{{webhook.final_price}}",
+                "o": "number:greater",
+                "b": "0"
+              }
+            ]
+          ]
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 500,
+            "y": 400
+          }
+        }
+      },
+      {
+        "id": 26,
+        "module": "paypal:ActionSendPayment",
+        "name": "Auto Pay Seller",
+        "version": 1,
+        "parameters": {
+          "currency": "USD"
+        },
+        "mapper": {
+          "amount": "{{webhook.final_price}}",
+          "recipient": "{{webhook.seller_paypal}}",
+          "note": "Payment for eBay item {{webhook.item_id}}"
+        },
+        "metadata": {
+          "designer": {
+            "x": 700,
+            "y": 400
+          }
+        }
+      },
+      {
+        "id": 27,
+        "module": "math:RandomNumber",
+        "name": "Generate Random Number",
+        "version": 1,
+        "parameters": {
+          "min": 100000,
+          "max": 999999
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 900,
+            "y": 400
+          }
+        }
+      },
+      {
+        "id": 28,
+        "module": "tools:TextReplace",
+        "name": "Create Inventory ID",
+        "version": 1,
+        "parameters": {},
+        "mapper": {
+          "text": "INV-{{formatDate(now; \"YYYYMMDD\")}}-{{27.result}}",
+          "pattern": "",
+          "replacement": ""
+        },
+        "metadata": {
+          "designer": {
+            "x": 1100,
+            "y": 400
+          }
+        }
+      },
+      {
+        "id": 29,
+        "module": "airtable:ActionCreateRecord",
+        "name": "Create Inventory Record",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Inventory"
+        },
+        "mapper": {
+          "record": {
+            "inventoryId": "{{28.text}}",
+            "itemId": ["{{webhook.record_id}}"],
+            "purchasePrice": "{{webhook.final_price}}",
+            "purchaseDate": "{{now}}",
+            "trackingNumber": "",
+            "buyerInfo": ""
+          }
+        },
+        "metadata": {
+          "designer": {
+            "x": 1300,
+            "y": 400
+          }
+        }
+      },
+      {
+        "id": 30,
+        "module": "slack:ActionSendMessage",
+        "name": "Send Win Notification",
+        "version": 1,
+        "parameters": {
+          "channel": "#auction-alerts"
+        },
+        "mapper": {
+          "text": "🎉 Won Auction! \n📦 Item: {{webhook.item_title}}\n💰 Price: ${{webhook.final_price}}\n📊 Inventory ID: {{28.text}}\n🔗 {{webhook.item_url}}"
+        },
+        "metadata": {
+          "designer": {
+            "x": 1500,
+            "y": 400
+          }
+        }
+      },
+      {
+        "id": 31,
+        "module": "gmail:ActionSendEmail",
+        "name": "Send Win Summary Email",
+        "version": 3,
+        "parameters": {},
+        "mapper": {
+          "to": ["{{config.email.username}}"],
+          "subject": "Auction Won - {{webhook.item_title}}",
+          "content": "Congratulations! You've won an auction.\n\nItem Details:\n- Title: {{webhook.item_title}}\n- Final Price: ${{webhook.final_price}}\n- Seller: {{webhook.seller_username}}\n- Inventory ID: {{28.text}}\n- eBay URL: {{webhook.item_url}}\n\nPayment Status: {{if(26.success; 'Paid via PayPal'; 'Payment Required')}}\n\nNext Steps:\n1. Wait for seller confirmation\n2. Monitor for shipping notification\n3. Prepare for resale listing"
+        },
+        "metadata": {
+          "designer": {
+            "x": 1700,
+            "y": 400
+          }
+        }
+      }
+    ],
+    "metadata": {
+      "version": 1,
+      "scenario": {
+        "roundtrips": 1,
+        "maxErrors": 3,
+        "autoCommit": true,
+        "autoCommitTriggerLast": true,
+        "sequential": false,
+        "confidential": false,
+        "dataloss": false,
+        "dlq": false
+      },
+      "designer": {
+        "orphans": []
+      }
+    }
+  },
+  "variables": [
+    {
+      "name": "slack_token",
+      "value": "{{config.slack.bot_token}}",
+      "type": "string"
+    }
+  ],
+  "webhooks": [
+    {
+      "name": "auction-won",
+      "url": "{{config.make.webhook_base_url}}/auction-won",
+      "method": "POST",
+      "expectedData": {
+        "item_id": "string",
+        "item_title": "string",
+        "final_price": "number",
+        "seller_username": "string",
+        "seller_paypal": "string",
+        "payment_required": "boolean",
+        "record_id": "string",
+        "item_url": "string"
+      }
+    }
+  ],
+  "settings": {
+    "errorHandling": {
+      "mode": "sequential",
+      "maxConsecutiveErrors": 5,
+      "autoDeactivate": false
+    },
+    "notifications": {
+      "slack": true,
+      "email": true
+    }
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "name": "eBay API Integration Module",
+  "description": "Comprehensive eBay API integration for auction discovery, bidding, and listing management",
+  "version": "1.0.0",
+  "endpoints": {
+    "searchItems": {
+      "url": "https://api.ebay.com/buy/browse/v1/item_summary/search",
+      "method": "GET",
+      "headers": {
+        "Authorization": "Bearer {{ebay_token}}",
+        "X-EBAY-C-MARKETPLACE-ID": "EBAY_US"
+      },
+      "parameters": {
+        "q": "string",
+        "filter": "string", 
+        "sort": "string",
+        "limit": "number"
+      },
+      "example": {
+        "q": "(electronics,collectibles,branded) -parts -repair",
+        "filter": "conditionIds:{1000|1500|2000},price:[10..500]",
+        "sort": "EndTimeSoonest",
+        "limit": 50
+      }
+    },
+    "getItemDetails": {
+      "url": "https://api.ebay.com/buy/browse/v1/item/{{itemId}}",
+      "method": "GET",
+      "headers": {
+        "Authorization": "Bearer {{ebay_token}}",
+        "X-EBAY-C-MARKETPLACE-ID": "EBAY_US"
+      }
+    },
+    "placeBid": {
+      "url": "https://api.ebay.com/ws/api.dll",
+      "method": "POST",
+      "headers": {
+        "X-EBAY-API-SITEID": "0",
+        "X-EBAY-API-CALL-NAME": "PlaceBid",
+        "X-EBAY-API-VERSION": "967",
+        "Content-Type": "text/xml"
+      },
+      "bodyTemplate": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<PlaceBidRequest xmlns=\"urn:ebay:apis:eBLBaseComponents\">\n  <RequesterCredentials>\n    <eBayAuthToken>{{ebay_auth_token}}</eBayAuthToken>\n  </RequesterCredentials>\n  <ItemID>{{itemId}}</ItemID>\n  <Bid>\n    <Amount>{{bidAmount}}</Amount>\n  </Bid>\n</PlaceBidRequest>"
+    },
+    "addItem": {
+      "url": "https://api.ebay.com/ws/api.dll",
+      "method": "POST", 
+      "headers": {
+        "X-EBAY-API-SITEID": "0",
+        "X-EBAY-API-CALL-NAME": "AddItem",
+        "X-EBAY-API-VERSION": "967",
+        "Content-Type": "text/xml"
+      },
+      "bodyTemplate": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<AddItemRequest xmlns=\"urn:ebay:apis:eBLBaseComponents\">\n  <RequesterCredentials>\n    <eBayAuthToken>{{ebay_auth_token}}</eBayAuthToken>\n  </RequesterCredentials>\n  <Item>\n    <Title>{{title}}</Title>\n    <Description><![CDATA[{{description}}]]></Description>\n    <StartPrice>{{startPrice}}</StartPrice>\n    <BuyItNowPrice>{{binPrice}}</BuyItNowPrice>\n    <CategoryID>{{categoryId}}</CategoryID>\n    <ConditionID>{{conditionId}}</ConditionID>\n    <ListingDuration>Days_7</ListingDuration>\n    <ListingType>Chinese</ListingType>\n    <PaymentMethods>PayPal</PaymentMethods>\n    <ShippingDetails>\n      <ShippingServiceOptions>\n        <ShippingService>USPSMedia</ShippingService>\n        <ShippingServiceCost>12.00</ShippingServiceCost>\n      </ShippingServiceOptions>\n    </ShippingDetails>\n    <ReturnPolicy>\n      <ReturnsAcceptedOption>ReturnsAccepted</ReturnsAcceptedOption>\n      <RefundOption>MoneyBack</RefundOption>\n      <ReturnsWithinOption>Days_30</ReturnsWithinOption>\n    </ReturnPolicy>\n  </Item>\n</AddItemRequest>"
+    },
+    "sendMessage": {
+      "url": "https://api.ebay.com/ws/api.dll",
+      "method": "POST",
+      "headers": {
+        "X-EBAY-API-SITEID": "0", 
+        "X-EBAY-API-CALL-NAME": "AddMemberMessage",
+        "X-EBAY-API-VERSION": "967",
+        "Content-Type": "text/xml"
+      },
+      "bodyTemplate": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<AddMemberMessageRequest xmlns=\"urn:ebay:apis:eBLBaseComponents\">\n  <RequesterCredentials>\n    <eBayAuthToken>{{ebay_auth_token}}</eBayAuthToken>\n  </RequesterCredentials>\n  <ItemID>{{itemId}}</ItemID>\n  <MemberMessage>\n    <Subject>{{subject}}</Subject>\n    <Body>{{messageText}}</Body>\n    <RecipientID>{{recipientId}}</RecipientID>\n  </MemberMessage>\n</AddMemberMessageRequest>"
+    }
+  },
+  "authentication": {
+    "type": "oauth2",
+    "tokenUrl": "https://api.ebay.com/identity/v1/oauth2/token",
+    "scopes": [
+      "https://api.ebay.com/oauth/api_scope",
+      "https://api.ebay.com/oauth/api_scope/sell.marketing.readonly",
+      "https://api.ebay.com/oauth/api_scope/sell.marketing",
+      "https://api.ebay.com/oauth/api_scope/sell.inventory.readonly",
+      "https://api.ebay.com/oauth/api_scope/sell.inventory"
+    ]
+  },
+  "errorHandling": {
+    "retryAttempts": 3,
+    "retryDelay": 1000,
+    "timeoutMs": 30000
+  },
+  "rateLimits": {
+    "searchItems": "5000/day",
+    "placeBid": "100/hour", 
+    "addItem": "500/day"
+  }
+}

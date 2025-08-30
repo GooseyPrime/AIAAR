@@ -1,0 +1,277 @@
+{
+  "scenario": {
+    "name": "Scenario 8: Analytics & Reporting",
+    "description": "Comprehensive performance tracking, analytics, and automated reporting",
+    "modules": [
+      {
+        "id": 61,
+        "module": "gateway:CustomTrigger",
+        "name": "Daily Report Generator",
+        "version": 1,
+        "parameters": {
+          "type": "schedule",
+          "schedule": {
+            "interval": 1,
+            "unit": "days",
+            "time": "23:00",
+            "timezone": "America/New_York"
+          }
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 100,
+            "y": 900
+          }
+        }
+      },
+      {
+        "id": 62,
+        "module": "airtable:ActionSearchRecords",
+        "name": "Get Today's Won Items",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Target Items",
+          "formula": "IS_SAME(CREATED_TIME(), TODAY(), 'day')"
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 300,
+            "y": 850
+          }
+        }
+      },
+      {
+        "id": 63,
+        "module": "airtable:ActionSearchRecords",
+        "name": "Get Today's Sold Items",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Target Items",
+          "formula": "IS_SAME({Sale Date}, TODAY(), 'day')"
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 300,
+            "y": 950
+          }
+        }
+      },
+      {
+        "id": 64,
+        "module": "airtable:ActionSearchRecords",
+        "name": "Get Active Listings",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Target Items",
+          "formula": "{Status} = 'Listed'"
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 500,
+            "y": 900
+          }
+        }
+      },
+      {
+        "id": 65,
+        "module": "math:Evaluator",
+        "name": "Calculate Daily Stats",
+        "version": 1,
+        "parameters": {},
+        "mapper": {
+          "expression": "{\n  items_won: {{length(62.records)}},\n  items_sold: {{length(63.records)}},\n  total_revenue: {{sum(63.records[].fields.salePrice)}},\n  total_profit: {{sum(63.records[].fields.finalProfit)}},\n  active_listings: {{length(64.records)}},\n  win_rate: {{if(length(62.records) > 0; divide(length(62.records); 100) * 100; 0)}},\n  roi_percentage: {{if(sum(63.records[].fields.finalPrice) > 0; divide(sum(63.records[].fields.finalProfit); sum(63.records[].fields.finalPrice)) * 100; 0)}}\n}"
+        },
+        "metadata": {
+          "designer": {
+            "x": 700,
+            "y": 900
+          }
+        }
+      },
+      {
+        "id": 66,
+        "module": "airtable:ActionCreateRecord",
+        "name": "Save Daily Performance",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Performance"
+        },
+        "mapper": {
+          "record": {
+            "date": "{{formatDate(now; 'YYYY-MM-DD')}}",
+            "itemsWon": "{{65.items_won}}",
+            "itemsSold": "{{65.items_sold}}",
+            "revenue": "{{65.total_revenue}}",
+            "profit": "{{65.total_profit}}",
+            "roi": "{{divide(65.roi_percentage; 100)}}",
+            "winRate": "{{divide(65.win_rate; 100)}}",
+            "activeListings": "{{65.active_listings}}"
+          }
+        },
+        "metadata": {
+          "designer": {
+            "x": 900,
+            "y": 900
+          }
+        }
+      },
+      {
+        "id": 67,
+        "module": "openai:CreateCompletion",
+        "name": "Generate Analytics Report",
+        "version": 1,
+        "parameters": {
+          "model": "gpt-4",
+          "temperature": 0.3,
+          "max_tokens": 800
+        },
+        "mapper": {
+          "prompt": "Generate a comprehensive daily performance report for the Automated Auction Assistant:\n\nDaily Statistics:\n- Items Won: {{65.items_won}}\n- Items Sold: {{65.items_sold}}\n- Total Revenue: ${{65.total_revenue}}\n- Total Profit: ${{65.total_profit}}\n- ROI: {{round(65.roi_percentage; 1)}}%\n- Win Rate: {{round(65.win_rate; 1)}}%\n- Active Listings: {{65.active_listings}}\n\nTop Performing Items Today:\n{{map(take(sortBy(63.records; 'fields.finalProfit'; 'desc'); 3); 'fields.title')}}\n\nInclude:\n1. Performance summary\n2. Key insights and trends\n3. Recommendations for tomorrow\n4. Risk assessment\n5. Action items\n\nFormat as professional business report."
+        },
+        "metadata": {
+          "designer": {
+            "x": 1100,
+            "y": 900
+          }
+        }
+      },
+      {
+        "id": 68,
+        "module": "gmail:ActionSendEmail",
+        "name": "Send Daily Report Email",
+        "version": 3,
+        "parameters": {},
+        "mapper": {
+          "to": ["{{config.email.username}}"],
+          "subject": "AIAAR Daily Report - {{formatDate(now; 'MM/DD/YYYY')}}",
+          "content": "{{67.choices[1].message.content}}\n\n---\nDetailed Statistics:\n\nItems Won Today: {{65.items_won}}\nItems Sold Today: {{65.items_sold}}\nRevenue: ${{65.total_revenue}}\nProfit: ${{65.total_profit}}\nROI: {{round(65.roi_percentage; 1)}}%\nActive Listings: {{65.active_listings}}\n\nTop Sales Today:\n{{map(take(sortBy(63.records; 'fields.salePrice'; 'desc'); 5); concat(fields.title, ' - $', fields.salePrice))}}\n\nGenerated by Automated Auction Assistant\n{{formatDate(now; 'YYYY-MM-DD HH:mm:ss')}}"
+        },
+        "metadata": {
+          "designer": {
+            "x": 1300,
+            "y": 900
+          }
+        }
+      },
+      {
+        "id": 69,
+        "module": "gateway:CustomTrigger",
+        "name": "Weekly Analytics Trigger",
+        "version": 1,
+        "parameters": {
+          "type": "schedule",
+          "schedule": {
+            "interval": 1,
+            "unit": "weeks",
+            "day": "sunday",
+            "time": "20:00",
+            "timezone": "America/New_York"
+          }
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 100,
+            "y": 1100
+          }
+        }
+      },
+      {
+        "id": 70,
+        "module": "airtable:ActionSearchRecords",
+        "name": "Get Week's Performance",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Performance",
+          "formula": "IS_AFTER({Date}, DATEADD(TODAY(), -7, 'days'))"
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 300,
+            "y": 1100
+          }
+        }
+      },
+      {
+        "id": 71,
+        "module": "openai:CreateCompletion",
+        "name": "Generate Weekly Insights",
+        "version": 1,
+        "parameters": {
+          "model": "gpt-4",
+          "temperature": 0.4,
+          "max_tokens": 1000
+        },
+        "mapper": {
+          "prompt": "Analyze this week's auction assistant performance and provide strategic insights:\n\nWeekly Summary:\n- Total Revenue: ${{sum(70.records[].fields.revenue)}}\n- Total Profit: ${{sum(70.records[].fields.profit)}}\n- Average ROI: {{round(average(70.records[].fields.roi) * 100; 1)}}%\n- Items Won: {{sum(70.records[].fields.itemsWon)}}\n- Items Sold: {{sum(70.records[].fields.itemsSold)}}\n- Average Win Rate: {{round(average(70.records[].fields.winRate) * 100; 1)}}%\n\nDaily Performance Trend:\n{{map(70.records; concat(formatDate(fields.date), ': $', fields.profit, ' profit'))}}\n\nProvide:\n1. Performance trends analysis\n2. Category/brand recommendations\n3. Bidding strategy adjustments\n4. Market opportunity identification\n5. Risk management suggestions\n6. Goals for next week"
+        },
+        "metadata": {
+          "designer": {
+            "x": 500,
+            "y": 1100
+          }
+        }
+      },
+      {
+        "id": 72,
+        "module": "slack:ActionSendMessage",
+        "name": "Weekly Performance Summary",
+        "version": 1,
+        "parameters": {
+          "channel": "#auction-analytics"
+        },
+        "mapper": {
+          "text": "📊 WEEKLY PERFORMANCE SUMMARY 📊\n\n💰 Total Revenue: ${{sum(70.records[].fields.revenue)}}\n📈 Total Profit: ${{sum(70.records[].fields.profit)}}\n🎯 Average ROI: {{round(average(70.records[].fields.roi) * 100; 1)}}%\n🏆 Items Won: {{sum(70.records[].fields.itemsWon)}}\n✅ Items Sold: {{sum(70.records[].fields.itemsSold)}}\n📊 Win Rate: {{round(average(70.records[].fields.winRate) * 100; 1)}}%\n\nDetailed analysis sent via email 📧"
+        },
+        "metadata": {
+          "designer": {
+            "x": 700,
+            "y": 1100
+          }
+        }
+      }
+    ],
+    "metadata": {
+      "version": 1,
+      "scenario": {
+        "roundtrips": 1,
+        "maxErrors": 3,
+        "autoCommit": true,
+        "autoCommitTriggerLast": true,
+        "sequential": false,
+        "confidential": false,
+        "dataloss": false,
+        "dlq": false
+      },
+      "designer": {
+        "orphans": []
+      }
+    }
+  },
+  "settings": {
+    "reporting": {
+      "dailyReportTime": "23:00",
+      "weeklyReportDay": "sunday",
+      "weeklyReportTime": "20:00",
+      "includeInsights": true,
+      "emailRecipients": ["{{config.email.username}}"],
+      "slackChannels": ["#auction-analytics", "#auction-alerts"]
+    },
+    "analytics": {
+      "trackROI": true,
+      "trackWinRate": true,
+      "trackCategoryPerformance": true,
+      "retentionDays": 365
+    }
+  }
+}

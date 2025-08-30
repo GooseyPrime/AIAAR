@@ -1,0 +1,282 @@
+{
+  "scenario": {
+    "name": "Scenario 2: Item Analysis & Valuation",
+    "description": "AI-powered analysis and market research for discovered items",
+    "modules": [
+      {
+        "id": 6,
+        "module": "openai:CreateCompletion",
+        "name": "AI Item Analysis",
+        "version": 1,
+        "parameters": {
+          "model": "gpt-4",
+          "temperature": 0.3,
+          "max_tokens": 500,
+          "top_p": 1,
+          "frequency_penalty": 0,
+          "presence_penalty": 0
+        },
+        "mapper": {
+          "prompt": "Analyze this auction item for resale potential:\nTitle: {{title}}\nPrice: ${{currentPrice.value}}\nCondition: {{condition}}\nDescription: {{shortDescription}}\n\nExtract:\n1. Brand and exact model\n2. Key selling features\n3. Potential issues/red flags\n4. Estimated retail value\n5. Resale difficulty (1-10)\n6. Shipping complexity (1-10)\n\nFormat as JSON."
+        },
+        "metadata": {
+          "designer": {
+            "x": 100,
+            "y": 200
+          }
+        }
+      },
+      {
+        "id": 7,
+        "module": "json:ParseJSON",
+        "name": "Parse AI Analysis",
+        "version": 1,
+        "parameters": {},
+        "mapper": {
+          "json": "{{6.choices[1].message.content}}"
+        },
+        "metadata": {
+          "designer": {
+            "x": 300,
+            "y": 200
+          }
+        }
+      },
+      {
+        "id": 8,
+        "module": "http:ActionSendData",
+        "name": "eBay Sold Listings Research",
+        "version": 3,
+        "parameters": {
+          "handleErrors": false,
+          "url": "https://api.ebay.com/buy/browse/v1/item_summary/search",
+          "method": "GET",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ebay_token}}"
+            },
+            {
+              "name": "X-EBAY-C-MARKETPLACE-ID",
+              "value": "EBAY_US"
+            }
+          ],
+          "qs": [
+            {
+              "name": "q",
+              "value": "{{7.brand}} {{7.model}}"
+            },
+            {
+              "name": "filter",
+              "value": "soldItems,conditionIds:{1000|1500|2000}"
+            },
+            {
+              "name": "sort",
+              "value": "newlyListed"
+            },
+            {
+              "name": "limit",
+              "value": "20"
+            }
+          ]
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 500,
+            "y": 200
+          }
+        }
+      },
+      {
+        "id": 9,
+        "module": "http:ActionSendData",
+        "name": "Amazon Price Research",
+        "version": 3,
+        "parameters": {
+          "handleErrors": true,
+          "url": "https://api.rainforestapi.com/request",
+          "method": "GET",
+          "headers": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{rainforest_api_key}}"
+            }
+          ],
+          "qs": [
+            {
+              "name": "type",
+              "value": "search"
+            },
+            {
+              "name": "amazon_domain",
+              "value": "amazon.com"
+            },
+            {
+              "name": "search_term",
+              "value": "{{7.brand}} {{7.model}}"
+            },
+            {
+              "name": "max_page",
+              "value": "1"
+            }
+          ]
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 700,
+            "y": 200
+          }
+        }
+      },
+      {
+        "id": 10,
+        "module": "math:Evaluator",
+        "name": "Calculate Profitability",
+        "version": 1,
+        "parameters": {},
+        "mapper": {
+          "expression": "{{subtract(multiply(avg_sold_price; 0.9); add(current_bid; shipping_in; shipping_out; ebay_fees; paypal_fees))}}",
+          "variables": [
+            {
+              "name": "current_bid",
+              "value": "{{currentPrice.value}}"
+            },
+            {
+              "name": "avg_sold_price",
+              "value": "{{average(8.data.itemSummaries[].currentPrice.value)}}"
+            },
+            {
+              "name": "shipping_in",
+              "value": "{{shippingOptions[1].shippingCost.value}}"
+            },
+            {
+              "name": "shipping_out",
+              "value": "12"
+            },
+            {
+              "name": "ebay_fees",
+              "value": "{{multiply(avg_sold_price; 0.13)}}"
+            },
+            {
+              "name": "paypal_fees",
+              "value": "{{multiply(avg_sold_price; 0.03)}}"
+            }
+          ]
+        },
+        "metadata": {
+          "designer": {
+            "x": 900,
+            "y": 200
+          }
+        }
+      },
+      {
+        "id": 11,
+        "module": "math:Evaluator",
+        "name": "Calculate Max Bid",
+        "version": 1,
+        "parameters": {},
+        "mapper": {
+          "expression": "{{multiply(subtract(avg_sold_price; add(shipping_in; shipping_out; ebay_fees; paypal_fees)); 0.75)}}",
+          "variables": [
+            {
+              "name": "avg_sold_price",
+              "value": "{{average(8.data.itemSummaries[].currentPrice.value)}}"
+            },
+            {
+              "name": "shipping_in",
+              "value": "{{shippingOptions[1].shippingCost.value}}"
+            },
+            {
+              "name": "shipping_out",
+              "value": "12"
+            },
+            {
+              "name": "ebay_fees",
+              "value": "{{multiply(avg_sold_price; 0.13)}}"
+            },
+            {
+              "name": "paypal_fees",
+              "value": "{{multiply(avg_sold_price; 0.03)}}"
+            }
+          ]
+        },
+        "metadata": {
+          "designer": {
+            "x": 1100,
+            "y": 200
+          }
+        }
+      },
+      {
+        "id": 12,
+        "module": "gateway:Filter",
+        "name": "Minimum ROI Filter",
+        "version": 1,
+        "parameters": {},
+        "filter": {
+          "conditions": [
+            [
+              {
+                "a": "{{10.result}}",
+                "o": "number:greater",
+                "b": "{{multiply(currentPrice.value; 0.25)}}"
+              }
+            ],
+            [
+              {
+                "a": "{{11.result}}",
+                "o": "number:greater",
+                "b": "{{add(currentPrice.value; 5)}}"
+              }
+            ],
+            [
+              {
+                "a": "{{7.resale_difficulty}}",
+                "o": "number:less",
+                "b": "7"
+              }
+            ]
+          ]
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 1300,
+            "y": 200
+          }
+        }
+      }
+    ],
+    "metadata": {
+      "version": 1,
+      "scenario": {
+        "roundtrips": 1,
+        "maxErrors": 3,
+        "autoCommit": true,
+        "autoCommitTriggerLast": true,
+        "sequential": false,
+        "confidential": false,
+        "dataloss": false,
+        "dlq": false
+      },
+      "designer": {
+        "orphans": []
+      }
+    }
+  },
+  "variables": [
+    {
+      "name": "ebay_token",
+      "value": "{{config.ebay.auth_token}}",
+      "type": "string"
+    },
+    {
+      "name": "rainforest_api_key",
+      "value": "{{config.rainforest.api_key}}",
+      "type": "string"
+    }
+  ]
+}

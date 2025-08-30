@@ -1,0 +1,257 @@
+{
+  "targetItems": {
+    "name": "Target Items",
+    "fields": {
+      "itemId": {
+        "type": "singleLineText",
+        "name": "Item ID",
+        "description": "eBay item identifier",
+        "options": {
+          "required": true
+        }
+      },
+      "title": {
+        "type": "longText",
+        "name": "Title",
+        "description": "Item title from eBay"
+      },
+      "currentPrice": {
+        "type": "currency",
+        "name": "Current Price",
+        "description": "Current bid/price",
+        "options": {
+          "precision": 2,
+          "symbol": "$"
+        }
+      },
+      "maxBid": {
+        "type": "currency",
+        "name": "Max Bid",
+        "description": "Calculated maximum bid amount",
+        "options": {
+          "precision": 2,
+          "symbol": "$"
+        }
+      },
+      "endTime": {
+        "type": "dateTime",
+        "name": "End Time",
+        "description": "Auction end time"
+      },
+      "status": {
+        "type": "singleSelect",
+        "name": "Status",
+        "options": {
+          "choices": [
+            { "name": "Monitoring", "color": "blue" },
+            { "name": "Won", "color": "green" },
+            { "name": "Lost", "color": "red" },
+            { "name": "Delivered", "color": "purple" },
+            { "name": "Listed", "color": "orange" },
+            { "name": "Sold", "color": "yellow" }
+          ]
+        }
+      },
+      "profitPotential": {
+        "type": "currency",
+        "name": "Profit Potential",
+        "description": "Estimated profit if won",
+        "options": {
+          "precision": 2,
+          "symbol": "$"
+        }
+      },
+      "ebayUrl": {
+        "type": "url",
+        "name": "eBay URL",
+        "description": "Link to eBay listing"
+      },
+      "category": {
+        "type": "singleSelect",
+        "name": "Category",
+        "options": {
+          "choices": [
+            { "name": "Electronics", "color": "blue" },
+            { "name": "Collectibles", "color": "green" },
+            { "name": "Branded Items", "color": "purple" },
+            { "name": "Other", "color": "gray" }
+          ]
+        }
+      },
+      "brand": {
+        "type": "singleLineText",
+        "name": "Brand",
+        "description": "Item brand/manufacturer"
+      },
+      "condition": {
+        "type": "singleSelect",
+        "name": "Condition",
+        "options": {
+          "choices": [
+            { "name": "New", "color": "green" },
+            { "name": "Like New", "color": "blue" },
+            { "name": "Very Good", "color": "purple" },
+            { "name": "Good", "color": "orange" },
+            { "name": "Acceptable", "color": "yellow" },
+            { "name": "Poor", "color": "red" }
+          ]
+        }
+      },
+      "createdDate": {
+        "type": "createdTime",
+        "name": "Created Date"
+      },
+      "sellerFeedback": {
+        "type": "number",
+        "name": "Seller Feedback %",
+        "options": {
+          "precision": 1
+        }
+      }
+    }
+  },
+  "inventory": {
+    "name": "Inventory",
+    "fields": {
+      "inventoryId": {
+        "type": "singleLineText",
+        "name": "Inventory ID",
+        "description": "Internal inventory identifier",
+        "options": {
+          "required": true
+        }
+      },
+      "itemId": {
+        "type": "multipleRecordLinks",
+        "name": "Item ID",
+        "description": "Link to Target Items table",
+        "options": {
+          "linkedTableId": "targetItems"
+        }
+      },
+      "purchasePrice": {
+        "type": "currency",
+        "name": "Purchase Price",
+        "options": {
+          "precision": 2,
+          "symbol": "$"
+        }
+      },
+      "salePrice": {
+        "type": "currency",
+        "name": "Sale Price",
+        "options": {
+          "precision": 2,
+          "symbol": "$"
+        }
+      },
+      "totalCosts": {
+        "type": "formula",
+        "name": "Total Costs",
+        "options": {
+          "formula": "{Purchase Price} + {Shipping In} + {eBay Fees} + {PayPal Fees} + {Shipping Out}"
+        }
+      },
+      "profit": {
+        "type": "formula",
+        "name": "Profit",
+        "options": {
+          "formula": "{Sale Price} - {Total Costs}"
+        }
+      },
+      "roi": {
+        "type": "formula",
+        "name": "ROI",
+        "options": {
+          "formula": "IF({Purchase Price} > 0, {Profit} / {Purchase Price} * 100, 0)"
+        }
+      },
+      "purchaseDate": {
+        "type": "date",
+        "name": "Purchase Date"
+      },
+      "saleDate": {
+        "type": "date",
+        "name": "Sale Date"
+      },
+      "daysToSell": {
+        "type": "formula",
+        "name": "Days to Sell",
+        "options": {
+          "formula": "IF({Sale Date}, DATETIME_DIFF({Sale Date}, {Purchase Date}, 'days'), '')"
+        }
+      },
+      "trackingNumber": {
+        "type": "singleLineText",
+        "name": "Tracking Number"
+      },
+      "buyerInfo": {
+        "type": "longText",
+        "name": "Buyer Info"
+      }
+    }
+  },
+  "performance": {
+    "name": "Performance",
+    "fields": {
+      "date": {
+        "type": "date",
+        "name": "Date",
+        "options": {
+          "required": true
+        }
+      },
+      "itemsWon": {
+        "type": "number",
+        "name": "Items Won",
+        "options": {
+          "precision": 0
+        }
+      },
+      "itemsSold": {
+        "type": "number",
+        "name": "Items Sold",
+        "options": {
+          "precision": 0
+        }
+      },
+      "revenue": {
+        "type": "currency",
+        "name": "Revenue",
+        "options": {
+          "precision": 2,
+          "symbol": "$"
+        }
+      },
+      "profit": {
+        "type": "currency",
+        "name": "Profit",
+        "options": {
+          "precision": 2,
+          "symbol": "$"
+        }
+      },
+      "roi": {
+        "type": "percent",
+        "name": "ROI",
+        "options": {
+          "precision": 1
+        }
+      },
+      "winRate": {
+        "type": "percent",
+        "name": "Win Rate",
+        "options": {
+          "precision": 1
+        }
+      },
+      "activeListings": {
+        "type": "number",
+        "name": "Active Listings",
+        "options": {
+          "precision": 0
+        }
+      }
+    }
+  }
+}

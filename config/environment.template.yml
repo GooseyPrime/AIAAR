@@ -1,0 +1,63 @@
+# Environment Configuration Template
+
+# Copy this file to environment.yml and fill in your API keys
+# DO NOT commit your actual API keys to version control
+
+# eBay API Configuration
+ebay:
+  client_id: "YOUR_EBAY_CLIENT_ID"
+  client_secret: "YOUR_EBAY_CLIENT_SECRET"
+  auth_token: "YOUR_EBAY_AUTH_TOKEN"
+  marketplace_id: "EBAY_US"
+  sandbox_mode: true  # Set to false for production
+
+# OpenAI API Configuration
+openai:
+  api_key: "YOUR_OPENAI_API_KEY"
+  model: "gpt-4"
+  temperature: 0.3
+  max_tokens: 500
+
+# Airtable Configuration
+airtable:
+  api_key: "YOUR_AIRTABLE_API_KEY"
+  base_id: "YOUR_AIRTABLE_BASE_ID"
+  
+# PayPal Configuration
+paypal:
+  client_id: "YOUR_PAYPAL_CLIENT_ID"
+  client_secret: "YOUR_PAYPAL_CLIENT_SECRET"
+  sandbox_mode: true  # Set to false for production
+
+# ShipStation Configuration
+shipstation:
+  api_key: "YOUR_SHIPSTATION_API_KEY"
+  api_secret: "YOUR_SHIPSTATION_API_SECRET"
+
+# Email Configuration
+email:
+  provider: "gmail"  # gmail, outlook, etc.
+  username: "your-email@domain.com"
+  password: "YOUR_EMAIL_PASSWORD"
+  
+# Make.com Configuration
+make:
+  webhook_base_url: "https://hook.make.com"
+  team_id: "YOUR_TEAM_ID"
+
+# Safety Settings
+safety:
+  daily_spending_limit: 200
+  max_bid_per_item: 100
+  min_seller_feedback: 95
+  restricted_categories:
+    - "Automotive parts"
+    - "Health products"
+    - "Adult items"
+
+# Bidding Strategy
+bidding:
+  conservative_multiplier: 0.6
+  aggressive_multiplier: 0.9
+  safety_margin: 0.75
+  min_profit_margin: 0.25
