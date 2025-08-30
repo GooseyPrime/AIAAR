@@ -1,0 +1,150 @@
+{
+  "name": "OpenAI Integration Module",
+  "description": "AI-powered analysis for item valuation, market research, and content generation",
+  "version": "1.0.0",
+  "endpoints": {
+    "analyzeItem": {
+      "url": "https://api.openai.com/v1/chat/completions",
+      "method": "POST",
+      "headers": {
+        "Authorization": "Bearer {{openai_api_key}}",
+        "Content-Type": "application/json"
+      },
+      "bodyTemplate": {
+        "model": "gpt-4",
+        "temperature": 0.3,
+        "max_tokens": 500,
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are an expert auction item analyzer. Analyze items for resale potential and provide structured data."
+          },
+          {
+            "role": "user", 
+            "content": "Analyze this auction item for resale potential:\nTitle: {{title}}\nPrice: ${{currentPrice}}\nCondition: {{condition}}\nDescription: {{description}}\n\nExtract:\n1. Brand and exact model\n2. Key selling features\n3. Potential issues/red flags\n4. Estimated retail value\n5. Resale difficulty (1-10)\n6. Shipping complexity (1-10)\n\nFormat as JSON."
+          }
+        ]
+      }
+    },
+    "generateListingContent": {
+      "url": "https://api.openai.com/v1/chat/completions", 
+      "method": "POST",
+      "headers": {
+        "Authorization": "Bearer {{openai_api_key}}",
+        "Content-Type": "application/json"
+      },
+      "bodyTemplate": {
+        "model": "gpt-4",
+        "temperature": 0.7,
+        "max_tokens": 800,
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are an expert eBay listing optimizer. Create compelling, SEO-optimized listings that drive sales."
+          },
+          {
+            "role": "user",
+            "content": "Create an optimized eBay listing for resale:\n\nItem Details:\n- Title: {{title}}\n- Brand: {{brand}}\n- Condition: {{condition}}\n- Purchase Price: ${{purchasePrice}}\n\nGenerate:\n1. SEO-optimized title (80 chars max)\n2. Detailed description with bullet points\n3. Suggested starting price: ${{multiply(purchasePrice, 1.4)}}\n4. Buy It Now price: ${{multiply(purchasePrice, 1.8)}}\n5. Keywords for search optimization\n6. Category suggestions\n\nFormat as JSON with fields: title, description, starting_price, bin_price, keywords, category_id"
+          }
+        ]
+      }
+    },
+    "extractTrackingInfo": {
+      "url": "https://api.openai.com/v1/chat/completions",
+      "method": "POST", 
+      "headers": {
+        "Authorization": "Bearer {{openai_api_key}}",
+        "Content-Type": "application/json"
+      },
+      "bodyTemplate": {
+        "model": "gpt-4",
+        "temperature": 0.1,
+        "max_tokens": 200,
+        "messages": [
+          {
+            "role": "system",
+            "content": "Extract shipping tracking information from emails. Return structured JSON data."
+          },
+          {
+            "role": "user",
+            "content": "Extract tracking information from this email. Return JSON with fields: tracking_number, carrier, status, expected_delivery_date\n\nEmail Subject: {{emailSubject}}\nEmail Content: {{emailContent}}"
+          }
+        ]
+      }
+    },
+    "generateDailyReport": {
+      "url": "https://api.openai.com/v1/chat/completions",
+      "method": "POST",
+      "headers": {
+        "Authorization": "Bearer {{openai_api_key}}",
+        "Content-Type": "application/json"
+      },
+      "bodyTemplate": {
+        "model": "gpt-4",
+        "temperature": 0.3,
+        "max_tokens": 800,
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a business analyst specializing in auction and resale operations. Generate comprehensive performance reports with actionable insights."
+          },
+          {
+            "role": "user",
+            "content": "Generate a comprehensive daily performance report for the Automated Auction Assistant:\n\nDaily Statistics:\n- Items Won: {{itemsWon}}\n- Items Sold: {{itemsSold}}\n- Total Revenue: ${{totalRevenue}}\n- Total Profit: ${{totalProfit}}\n- ROI: {{roiPercentage}}%\n- Win Rate: {{winRate}}%\n- Active Listings: {{activeListings}}\n\nTop Performing Items Today:\n{{topItems}}\n\nInclude:\n1. Performance summary\n2. Key insights and trends\n3. Recommendations for tomorrow\n4. Risk assessment\n5. Action items\n\nFormat as professional business report."
+          }
+        ]
+      }
+    },
+    "generateWeeklyInsights": {
+      "url": "https://api.openai.com/v1/chat/completions",
+      "method": "POST",
+      "headers": {
+        "Authorization": "Bearer {{openai_api_key}}",
+        "Content-Type": "application/json"
+      },
+      "bodyTemplate": {
+        "model": "gpt-4",
+        "temperature": 0.4,
+        "max_tokens": 1000,
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a strategic business consultant for auction and resale operations. Provide deep analytical insights and strategic recommendations."
+          },
+          {
+            "role": "user",
+            "content": "Analyze this week's auction assistant performance and provide strategic insights:\n\nWeekly Summary:\n- Total Revenue: ${{weeklyRevenue}}\n- Total Profit: ${{weeklyProfit}}\n- Average ROI: {{averageROI}}%\n- Items Won: {{itemsWon}}\n- Items Sold: {{itemsSold}}\n- Average Win Rate: {{averageWinRate}}%\n\nDaily Performance Trend:\n{{dailyTrends}}\n\nProvide:\n1. Performance trends analysis\n2. Category/brand recommendations\n3. Bidding strategy adjustments\n4. Market opportunity identification\n5. Risk management suggestions\n6. Goals for next week"
+          }
+        ]
+      }
+    }
+  },
+  "authentication": {
+    "type": "bearer_token",
+    "headerName": "Authorization",
+    "tokenPrefix": "Bearer"
+  },
+  "errorHandling": {
+    "retryAttempts": 3,
+    "retryDelay": 2000,
+    "timeoutMs": 60000,
+    "fallbackResponses": {
+      "analyzeItem": "{\"brand\": \"Unknown\", \"model\": \"Unknown\", \"resale_difficulty\": 5, \"shipping_complexity\": 5}",
+      "extractTrackingInfo": "{\"tracking_number\": null, \"carrier\": null, \"status\": \"unknown\"}"
+    }
+  },
+  "rateLimits": {
+    "requests_per_minute": 60,
+    "tokens_per_minute": 150000
+  },
+  "prompts": {
+    "itemAnalysis": {
+      "systemPrompt": "You are an expert auction item analyzer. Analyze items for resale potential and provide structured data.",
+      "template": "Analyze this auction item for resale potential:\nTitle: {{title}}\nPrice: ${{currentPrice}}\nCondition: {{condition}}\nDescription: {{description}}\n\nExtract:\n1. Brand and exact model\n2. Key selling features\n3. Potential issues/red flags\n4. Estimated retail value\n5. Resale difficulty (1-10)\n6. Shipping complexity (1-10)\n\nFormat as JSON."
+    },
+    "listingOptimization": {
+      "systemPrompt": "You are an expert eBay listing optimizer. Create compelling, SEO-optimized listings that drive sales.",
+      "template": "Create an optimized eBay listing for this item with SEO-friendly title, detailed description, competitive pricing, and relevant keywords."
+    }
+  }
+}

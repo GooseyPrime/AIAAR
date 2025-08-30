@@ -1,0 +1,229 @@
+{
+  "scenario": {
+    "name": "Scenario 6: Listing & Resale",
+    "description": "Automated creation of optimized eBay listings for resale",
+    "modules": [
+      {
+        "id": 45,
+        "module": "airtable:ActionSearchRecords",
+        "name": "Get Delivered Items",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Target Items",
+          "formula": "AND({Status} = 'Delivered', {Listed} = FALSE())"
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 100,
+            "y": 700
+          }
+        }
+      },
+      {
+        "id": 46,
+        "module": "gateway:Iterator",
+        "name": "Process Each Item",
+        "version": 1,
+        "parameters": {},
+        "mapper": {
+          "array": "{{45.records}}"
+        },
+        "metadata": {
+          "designer": {
+            "x": 300,
+            "y": 700
+          }
+        }
+      },
+      {
+        "id": 47,
+        "module": "openai:CreateCompletion",
+        "name": "Generate Listing Content",
+        "version": 1,
+        "parameters": {
+          "model": "gpt-4",
+          "temperature": 0.7,
+          "max_tokens": 800
+        },
+        "mapper": {
+          "prompt": "Create an optimized eBay listing for resale:\n\nItem Details:\n- Title: {{46.fields.title}}\n- Brand: {{46.fields.brand}}\n- Condition: {{46.fields.condition}}\n- Purchase Price: ${{46.fields.finalPrice}}\n\nGenerate:\n1. SEO-optimized title (80 chars max)\n2. Detailed description with bullet points\n3. Suggested starting price: ${{multiply(46.fields.finalPrice; 1.4)}}\n4. Buy It Now price: ${{multiply(46.fields.finalPrice; 1.8)}}\n5. Keywords for search optimization\n6. Category suggestions\n\nFormat as JSON with fields: title, description, starting_price, bin_price, keywords, category_id"
+        },
+        "metadata": {
+          "designer": {
+            "x": 500,
+            "y": 700
+          }
+        }
+      },
+      {
+        "id": 48,
+        "module": "json:ParseJSON",
+        "name": "Parse Listing Data",
+        "version": 1,
+        "parameters": {},
+        "mapper": {
+          "json": "{{47.choices[1].message.content}}"
+        },
+        "metadata": {
+          "designer": {
+            "x": 700,
+            "y": 700
+          }
+        }
+      },
+      {
+        "id": 49,
+        "module": "http:ActionSendData",
+        "name": "Create eBay Listing",
+        "version": 3,
+        "parameters": {
+          "handleErrors": true,
+          "url": "https://api.ebay.com/ws/api.dll",
+          "method": "POST",
+          "headers": [
+            {
+              "name": "X-EBAY-API-SITEID",
+              "value": "0"
+            },
+            {
+              "name": "X-EBAY-API-CALL-NAME",
+              "value": "AddItem"
+            },
+            {
+              "name": "X-EBAY-API-VERSION",
+              "value": "967"
+            },
+            {
+              "name": "Content-Type",
+              "value": "text/xml"
+            }
+          ]
+        },
+        "mapper": {
+          "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<AddItemRequest xmlns=\"urn:ebay:apis:eBLBaseComponents\">\n  <RequesterCredentials>\n    <eBayAuthToken>{{ebay_auth_token}}</eBayAuthToken>\n  </RequesterCredentials>\n  <Item>\n    <Title>{{48.title}}</Title>\n    <Description><![CDATA[{{48.description}}]]></Description>\n    <StartPrice>{{48.starting_price}}</StartPrice>\n    <BuyItNowPrice>{{48.bin_price}}</BuyItNowPrice>\n    <CategoryID>{{48.category_id}}</CategoryID>\n    <ConditionID>{{getConditionId(46.fields.condition)}}</ConditionID>\n    <ListingDuration>Days_7</ListingDuration>\n    <ListingType>Chinese</ListingType>\n    <PaymentMethods>PayPal</PaymentMethods>\n    <ShippingDetails>\n      <ShippingServiceOptions>\n        <ShippingService>USPSMedia</ShippingService>\n        <ShippingServiceCost>12.00</ShippingServiceCost>\n      </ShippingServiceOptions>\n    </ShippingDetails>\n    <ReturnPolicy>\n      <ReturnsAcceptedOption>ReturnsAccepted</ReturnsAcceptedOption>\n      <RefundOption>MoneyBack</RefundOption>\n      <ReturnsWithinOption>Days_30</ReturnsWithinOption>\n    </ReturnPolicy>\n  </Item>\n</AddItemRequest>"
+        },
+        "metadata": {
+          "designer": {
+            "x": 900,
+            "y": 700
+          }
+        }
+      },
+      {
+        "id": 50,
+        "module": "airtable:ActionUpdateRecord",
+        "name": "Mark as Listed",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Target Items"
+        },
+        "mapper": {
+          "record": {
+            "id": "{{46.id}}",
+            "status": "Listed",
+            "listedDate": "{{now}}",
+            "listingId": "{{49.data.ItemID}}",
+            "listingTitle": "{{48.title}}",
+            "startingPrice": "{{48.starting_price}}",
+            "binPrice": "{{48.bin_price}}",
+            "listed": true
+          }
+        },
+        "metadata": {
+          "designer": {
+            "x": 1100,
+            "y": 700
+          }
+        }
+      },
+      {
+        "id": 51,
+        "module": "airtable:ActionUpdateRecord",
+        "name": "Update Inventory",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Inventory"
+        },
+        "mapper": {
+          "record": {
+            "itemId": ["{{46.id}}"],
+            "listingPrice": "{{48.bin_price}}",
+            "listedDate": "{{now}}",
+            "ebayListingId": "{{49.data.ItemID}}"
+          }
+        },
+        "metadata": {
+          "designer": {
+            "x": 1300,
+            "y": 700
+          }
+        }
+      },
+      {
+        "id": 52,
+        "module": "slack:ActionSendMessage",
+        "name": "Listing Success Notification",
+        "version": 1,
+        "parameters": {
+          "channel": "#auction-alerts"
+        },
+        "mapper": {
+          "text": "🚀 New Listing Created!\n📋 Title: {{48.title}}\n💰 Starting: ${{48.starting_price}}\n🎯 BIN: ${{48.bin_price}}\n🔗 eBay ID: {{49.data.ItemID}}\n📈 Potential Profit: ${{subtract(48.bin_price; 46.fields.finalPrice)}}"
+        },
+        "metadata": {
+          "designer": {
+            "x": 1500,
+            "y": 700
+          }
+        }
+      }
+    ],
+    "metadata": {
+      "version": 1,
+      "scenario": {
+        "roundtrips": 1,
+        "maxErrors": 3,
+        "autoCommit": true,
+        "autoCommitTriggerLast": true,
+        "sequential": false,
+        "confidential": false,
+        "dataloss": false,
+        "dlq": false
+      },
+      "designer": {
+        "orphans": []
+      }
+    }
+  },
+  "variables": [
+    {
+      "name": "ebay_auth_token",
+      "value": "{{config.ebay.auth_token}}",
+      "type": "string"
+    }
+  ],
+  "functions": [
+    {
+      "name": "getConditionId",
+      "description": "Convert condition text to eBay condition ID",
+      "code": "function getConditionId(condition) {\n  const conditionMap = {\n    'New': '1000',\n    'Like New': '1500',\n    'Very Good': '2000',\n    'Good': '2500',\n    'Acceptable': '3000'\n  };\n  return conditionMap[condition] || '2000';\n}"
+    }
+  ],
+  "settings": {
+    "listingDefaults": {
+      "duration": "Days_7",
+      "shippingCost": "12.00",
+      "returnsAccepted": true,
+      "returnPeriod": "Days_30"
+    },
+    "pricingStrategy": {
+      "startingPriceMultiplier": 1.4,
+      "binPriceMultiplier": 1.8,
+      "minimumProfit": 10
+    }
+  }
+}

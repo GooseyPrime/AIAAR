@@ -1,0 +1,319 @@
+{
+  "scenario": {
+    "name": "Scenario 5: Shipping & Receiving",
+    "description": "Automated tracking of shipments and delivery confirmations",
+    "modules": [
+      {
+        "id": 32,
+        "module": "gmail:TriggerWatchEmails",
+        "name": "Monitor Shipping Emails",
+        "version": 3,
+        "parameters": {
+          "folder": "INBOX",
+          "criteria": {
+            "from": "ebay|paypal|usps|fedex|ups",
+            "subject": "shipped|tracking|delivered"
+          }
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 100,
+            "y": 500
+          }
+        }
+      },
+      {
+        "id": 33,
+        "module": "openai:CreateCompletion",
+        "name": "Extract Tracking Details",
+        "version": 1,
+        "parameters": {
+          "model": "gpt-4",
+          "temperature": 0.1,
+          "max_tokens": 200
+        },
+        "mapper": {
+          "prompt": "Extract tracking information from this email. Return JSON with fields: tracking_number, carrier, status, expected_delivery_date\n\nEmail Subject: {{32.subject}}\nEmail Content: {{32.text}}"
+        },
+        "metadata": {
+          "designer": {
+            "x": 300,
+            "y": 500
+          }
+        }
+      },
+      {
+        "id": 34,
+        "module": "json:ParseJSON",
+        "name": "Parse Tracking Data",
+        "version": 1,
+        "parameters": {},
+        "mapper": {
+          "json": "{{33.choices[1].message.content}}"
+        },
+        "metadata": {
+          "designer": {
+            "x": 500,
+            "y": 500
+          }
+        }
+      },
+      {
+        "id": 35,
+        "module": "airtable:ActionSearchRecords",
+        "name": "Find Related Inventory",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Target Items",
+          "formula": "AND({Status} = 'Won', SEARCH('{{32.from}}', {Seller}) > 0)"
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 700,
+            "y": 500
+          }
+        }
+      },
+      {
+        "id": 36,
+        "module": "gateway:Filter",
+        "name": "Valid Tracking Filter",
+        "version": 1,
+        "parameters": {},
+        "filter": {
+          "conditions": [
+            [
+              {
+                "a": "{{34.tracking_number}}",
+                "o": "exist"
+              }
+            ],
+            [
+              {
+                "a": "{{35.records}}",
+                "o": "exist"
+              }
+            ]
+          ]
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 900,
+            "y": 500
+          }
+        }
+      },
+      {
+        "id": 37,
+        "module": "airtable:ActionUpdateRecord",
+        "name": "Update Tracking Info",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Target Items"
+        },
+        "mapper": {
+          "record": {
+            "id": "{{35.records[1].id}}",
+            "trackingNumber": "{{34.tracking_number}}",
+            "carrier": "{{34.carrier}}",
+            "status": "Shipped",
+            "expectedDelivery": "{{34.expected_delivery_date}}"
+          }
+        },
+        "metadata": {
+          "designer": {
+            "x": 1100,
+            "y": 500
+          }
+        }
+      },
+      {
+        "id": 38,
+        "module": "gateway:CustomTrigger",
+        "name": "Check Deliveries",
+        "version": 1,
+        "parameters": {
+          "type": "schedule",
+          "schedule": {
+            "interval": 1,
+            "unit": "days",
+            "time": "18:00",
+            "timezone": "America/New_York"
+          }
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 100,
+            "y": 600
+          }
+        }
+      },
+      {
+        "id": 39,
+        "module": "airtable:ActionSearchRecords",
+        "name": "Get Shipped Items",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Target Items",
+          "formula": "AND({Status} = 'Shipped', {Tracking Number} != '')"
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 300,
+            "y": 600
+          }
+        }
+      },
+      {
+        "id": 40,
+        "module": "gateway:Iterator",
+        "name": "Check Each Shipment",
+        "version": 1,
+        "parameters": {},
+        "mapper": {
+          "array": "{{39.records}}"
+        },
+        "metadata": {
+          "designer": {
+            "x": 500,
+            "y": 600
+          }
+        }
+      },
+      {
+        "id": 41,
+        "module": "http:ActionSendData",
+        "name": "Check Delivery Status",
+        "version": 3,
+        "parameters": {
+          "handleErrors": true,
+          "url": "https://api.trackingmore.com/v3/trackings/{{40.fields.carrier}}/{{40.fields.trackingNumber}}",
+          "method": "GET",
+          "headers": [
+            {
+              "name": "Tracking-Api-Key",
+              "value": "{{tracking_api_key}}"
+            }
+          ]
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 700,
+            "y": 600
+          }
+        }
+      },
+      {
+        "id": 42,
+        "module": "gateway:Filter",
+        "name": "Delivered Filter",
+        "version": 1,
+        "parameters": {},
+        "filter": {
+          "conditions": [
+            [
+              {
+                "a": "{{41.data.status}}",
+                "o": "text:equal",
+                "b": "delivered"
+              }
+            ]
+          ]
+        },
+        "mapper": {},
+        "metadata": {
+          "designer": {
+            "x": 900,
+            "y": 600
+          }
+        }
+      },
+      {
+        "id": 43,
+        "module": "airtable:ActionUpdateRecord",
+        "name": "Mark as Delivered",
+        "version": 3,
+        "parameters": {
+          "base": "{{config.airtable.base_id}}",
+          "table": "Target Items"
+        },
+        "mapper": {
+          "record": {
+            "id": "{{40.id}}",
+            "status": "Delivered",
+            "deliveryDate": "{{now}}",
+            "actualDeliveryDate": "{{41.data.delivered_date}}"
+          }
+        },
+        "metadata": {
+          "designer": {
+            "x": 1100,
+            "y": 600
+          }
+        }
+      },
+      {
+        "id": 44,
+        "module": "slack:ActionSendMessage",
+        "name": "Delivery Notification",
+        "version": 1,
+        "parameters": {
+          "channel": "#auction-alerts"
+        },
+        "mapper": {
+          "text": "📦 Package Delivered!\n🏷️ Item: {{40.fields.title}}\n📍 Tracking: {{40.fields.trackingNumber}}\n✅ Ready for listing preparation"
+        },
+        "metadata": {
+          "designer": {
+            "x": 1300,
+            "y": 600
+          }
+        }
+      }
+    ],
+    "metadata": {
+      "version": 1,
+      "scenario": {
+        "roundtrips": 1,
+        "maxErrors": 3,
+        "autoCommit": true,
+        "autoCommitTriggerLast": true,
+        "sequential": false,
+        "confidential": false,
+        "dataloss": false,
+        "dlq": false
+      },
+      "designer": {
+        "orphans": []
+      }
+    }
+  },
+  "variables": [
+    {
+      "name": "tracking_api_key",
+      "value": "{{config.tracking.api_key}}",
+      "type": "string"
+    }
+  ],
+  "settings": {
+    "emailMonitoring": {
+      "enabled": true,
+      "folders": ["INBOX"],
+      "keywords": ["shipped", "tracking", "delivered", "package"]
+    },
+    "deliveryChecking": {
+      "enabled": true,
+      "frequency": "daily",
+      "time": "18:00"
+    }
+  }
+}

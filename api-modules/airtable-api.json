@@ -1,0 +1,161 @@
+{
+  "name": "Airtable Integration Module",
+  "description": "Database operations for inventory, performance tracking, and data management", 
+  "version": "1.0.0",
+  "baseUrl": "https://api.airtable.com/v0",
+  "endpoints": {
+    "createRecord": {
+      "url": "{{baseUrl}}/{{baseId}}/{{tableName}}",
+      "method": "POST",
+      "headers": {
+        "Authorization": "Bearer {{airtable_api_key}}",
+        "Content-Type": "application/json"
+      },
+      "bodyTemplate": {
+        "fields": "{{recordData}}"
+      }
+    },
+    "updateRecord": {
+      "url": "{{baseUrl}}/{{baseId}}/{{tableName}}/{{recordId}}",
+      "method": "PATCH",
+      "headers": {
+        "Authorization": "Bearer {{airtable_api_key}}",
+        "Content-Type": "application/json"
+      },
+      "bodyTemplate": {
+        "fields": "{{recordData}}"
+      }
+    },
+    "searchRecords": {
+      "url": "{{baseUrl}}/{{baseId}}/{{tableName}}",
+      "method": "GET",
+      "headers": {
+        "Authorization": "Bearer {{airtable_api_key}}"
+      },
+      "parameters": {
+        "filterByFormula": "string",
+        "sort": "array",
+        "maxRecords": "number",
+        "view": "string"
+      }
+    },
+    "listRecords": {
+      "url": "{{baseUrl}}/{{baseId}}/{{tableName}}",
+      "method": "GET", 
+      "headers": {
+        "Authorization": "Bearer {{airtable_api_key}}"
+      },
+      "parameters": {
+        "pageSize": "number",
+        "offset": "string"
+      }
+    },
+    "deleteRecord": {
+      "url": "{{baseUrl}}/{{baseId}}/{{tableName}}/{{recordId}}",
+      "method": "DELETE",
+      "headers": {
+        "Authorization": "Bearer {{airtable_api_key}}"
+      }
+    }
+  },
+  "tables": {
+    "targetItems": {
+      "name": "Target Items",
+      "primaryKey": "itemId",
+      "fields": {
+        "itemId": "singleLineText",
+        "title": "longText", 
+        "currentPrice": "currency",
+        "maxBid": "currency",
+        "endTime": "dateTime",
+        "status": "singleSelect",
+        "profitPotential": "currency",
+        "ebayUrl": "url",
+        "category": "singleSelect",
+        "brand": "singleLineText",
+        "condition": "singleSelect",
+        "createdDate": "createdTime",
+        "sellerFeedback": "number"
+      },
+      "commonQueries": {
+        "activeTargets": "AND({Status} = 'Monitoring', {End Time} > NOW())",
+        "wonItems": "{Status} = 'Won'",
+        "deliveredItems": "AND({Status} = 'Delivered', {Listed} = FALSE())",
+        "listedItems": "{Status} = 'Listed'",
+        "soldItems": "{Status} = 'Sold'"
+      }
+    },
+    "inventory": {
+      "name": "Inventory",
+      "primaryKey": "inventoryId",
+      "fields": {
+        "inventoryId": "singleLineText",
+        "itemId": "multipleRecordLinks",
+        "purchasePrice": "currency",
+        "salePrice": "currency",
+        "totalCosts": "formula",
+        "profit": "formula",
+        "roi": "formula",
+        "purchaseDate": "date",
+        "saleDate": "date",
+        "daysToSell": "formula",
+        "trackingNumber": "singleLineText",
+        "buyerInfo": "longText"
+      }
+    },
+    "performance": {
+      "name": "Performance",
+      "primaryKey": "date",
+      "fields": {
+        "date": "date",
+        "itemsWon": "number",
+        "itemsSold": "number",
+        "revenue": "currency",
+        "profit": "currency",
+        "roi": "percent",
+        "winRate": "percent",
+        "activeListings": "number"
+      },
+      "commonQueries": {
+        "today": "IS_SAME({Date}, TODAY(), 'day')",
+        "thisWeek": "IS_AFTER({Date}, DATEADD(TODAY(), -7, 'days'))",
+        "thisMonth": "IS_SAME({Date}, TODAY(), 'month')"
+      }
+    }
+  },
+  "authentication": {
+    "type": "bearer_token",
+    "headerName": "Authorization",
+    "tokenPrefix": "Bearer"
+  },
+  "errorHandling": {
+    "retryAttempts": 3,
+    "retryDelay": 1000,
+    "timeoutMs": 30000,
+    "errorCodes": {
+      "401": "Invalid API key",
+      "403": "Permission denied",
+      "404": "Record or table not found",
+      "422": "Invalid request data",
+      "429": "Rate limit exceeded"
+    }
+  },
+  "rateLimits": {
+    "requestsPerSecond": 5,
+    "requestsPerHour": 1000
+  },
+  "utilities": {
+    "formatFilters": {
+      "dateToday": "IS_SAME({{{fieldName}}}, TODAY(), 'day')",
+      "dateThisWeek": "IS_AFTER({{{fieldName}}}, DATEADD(TODAY(), -7, 'days'))",
+      "statusEquals": "{{{fieldName}}} = '{{value}}'",
+      "numberGreater": "{{{fieldName}}} > {{value}}",
+      "textContains": "SEARCH('{{value}}', {{{fieldName}}}) > 0"
+    },
+    "commonFormulas": {
+      "profit": "{Sale Price} - {Purchase Price} - {Shipping Cost} - {Fees}",
+      "roi": "IF({Purchase Price} > 0, {Profit} / {Purchase Price} * 100, 0)",
+      "daysToSell": "IF({Sale Date}, DATETIME_DIFF({Sale Date}, {Purchase Date}, 'days'), '')"
+    }
+  }
+}
