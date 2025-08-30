@@ -1,0 +1,83 @@
+# Add common build artifacts and temporary files
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+config/environment.yml
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Backup files
+backups/
+*.bak
+
+# Setup status
+.setup_status
+
+# Make.com exports (may contain sensitive data)
+*.make
+*.blueprint
+
+# API response cache
+cache/
+*.cache
+
+# Database exports
+*.csv
+*.xlsx
+*.db
+*.sqlite
+
+# Compiled documentation
+docs/_build/
+docs/site/
+
+# Testing
+.coverage
+.pytest_cache/
+.tox/
+
+# Deployment
+deploy/
+dist/
+build/

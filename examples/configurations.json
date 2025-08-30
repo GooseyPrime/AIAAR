@@ -1,0 +1,210 @@
+{
+  "example_configurations": {
+    "search_criteria": {
+      "basic": {
+        "query": "(electronics,collectibles,branded) -parts -repair",
+        "price_range": "[10..500]",
+        "conditions": ["1000", "1500", "2000"],
+        "description": "Basic search for electronics and collectibles under $500"
+      },
+      "high_value": {
+        "query": "(apple,samsung,sony,nintendo) -parts -broken",
+        "price_range": "[100..1000]", 
+        "conditions": ["1000", "1500"],
+        "description": "Premium brand electronics with higher value potential"
+      },
+      "collectibles": {
+        "query": "(vintage,antique,collectible,rare) -reproduction",
+        "price_range": "[25..300]",
+        "conditions": ["1000", "1500", "2000"],
+        "description": "Collectibles and vintage items with authentication"
+      }
+    },
+    "bidding_strategies": {
+      "conservative": {
+        "max_bid_multiplier": 0.7,
+        "early_bid_multiplier": 0.5,
+        "late_bid_multiplier": 0.8,
+        "description": "Lower risk strategy with smaller profit margins"
+      },
+      "aggressive": {
+        "max_bid_multiplier": 0.9,
+        "early_bid_multiplier": 0.6,
+        "late_bid_multiplier": 0.95,
+        "description": "Higher risk strategy targeting maximum profits"
+      },
+      "balanced": {
+        "max_bid_multiplier": 0.8,
+        "early_bid_multiplier": 0.55,
+        "late_bid_multiplier": 0.85,
+        "description": "Balanced approach with moderate risk/reward"
+      }
+    },
+    "safety_limits": {
+      "beginner": {
+        "daily_spending_limit": 100,
+        "max_bid_per_item": 50,
+        "min_seller_feedback": 98,
+        "restricted_categories": ["Automotive", "Health", "Adult"],
+        "description": "Conservative limits for new users"
+      },
+      "intermediate": {
+        "daily_spending_limit": 300,
+        "max_bid_per_item": 150,
+        "min_seller_feedback": 95,
+        "restricted_categories": ["Automotive", "Health"],
+        "description": "Moderate limits for experienced users"
+      },
+      "advanced": {
+        "daily_spending_limit": 500,
+        "max_bid_per_item": 250,
+        "min_seller_feedback": 90,
+        "restricted_categories": ["Health"],
+        "description": "Higher limits for expert users"
+      }
+    },
+    "profit_calculations": {
+      "standard_fees": {
+        "ebay_final_value_fee": 0.13,
+        "paypal_fee": 0.03,
+        "shipping_cost": 12.00,
+        "packaging_cost": 2.00,
+        "description": "Standard fee structure for most items"
+      },
+      "high_value_fees": {
+        "ebay_final_value_fee": 0.13,
+        "paypal_fee": 0.03,
+        "shipping_cost": 15.00,
+        "packaging_cost": 5.00,
+        "insurance_cost": 10.00,
+        "description": "Fee structure for high-value items requiring insurance"
+      }
+    },
+    "ai_prompts": {
+      "item_analysis": {
+        "basic": "Analyze this auction item for resale potential: Title: {{title}}, Price: ${{price}}, Condition: {{condition}}. Provide brand, model, retail value, and resale difficulty (1-10).",
+        "detailed": "As an expert auction analyst, thoroughly evaluate this item:\n\nTitle: {{title}}\nCurrent Price: ${{price}}\nCondition: {{condition}}\nDescription: {{description}}\n\nProvide detailed analysis including:\n1. Brand and exact model identification\n2. Key selling features and value drivers\n3. Market demand assessment\n4. Potential issues or red flags\n5. Estimated retail/market value\n6. Resale difficulty score (1-10, where 1=very easy, 10=very difficult)\n7. Shipping complexity (1-10)\n8. Risk assessment\n\nFormat response as JSON."
+      },
+      "listing_optimization": {
+        "basic": "Create an optimized eBay listing title and description for: {{title}}. Focus on SEO keywords and compelling copy.",
+        "advanced": "Create a premium eBay listing for this item:\n\nOriginal Title: {{title}}\nBrand: {{brand}}\nCondition: {{condition}}\nKey Features: {{features}}\nPurchase Price: ${{purchase_price}}\n\nGenerate:\n1. SEO-optimized title (80 characters max) with relevant keywords\n2. Compelling description with bullet points highlighting key features\n3. Professional condition description\n4. Competitive pricing strategy\n5. Relevant search keywords for visibility\n6. Appropriate eBay category\n\nFormat as JSON with fields: optimized_title, description, keywords, category_id, condition_description"
+      }
+    }
+  },
+  "test_data": {
+    "sample_items": [
+      {
+        "title": "Apple iPhone 13 Pro 128GB Unlocked - Excellent Condition",
+        "current_price": 650,
+        "condition": "Very Good",
+        "seller_feedback": 98.5,
+        "description": "Excellent condition iPhone 13 Pro, fully unlocked, no scratches",
+        "expected_analysis": {
+          "brand": "Apple",
+          "model": "iPhone 13 Pro 128GB",
+          "retail_value": 999,
+          "resale_difficulty": 2,
+          "shipping_complexity": 3
+        }
+      },
+      {
+        "title": "Vintage Nintendo Game Boy Color Purple Complete in Box",
+        "current_price": 85,
+        "condition": "Very Good", 
+        "seller_feedback": 96.2,
+        "description": "Original Nintendo Game Boy Color in purple, complete with box and manuals",
+        "expected_analysis": {
+          "brand": "Nintendo",
+          "model": "Game Boy Color Purple",
+          "retail_value": 200,
+          "resale_difficulty": 4,
+          "shipping_complexity": 5
+        }
+      }
+    ],
+    "webhook_payloads": {
+      "auction_won": {
+        "item_id": "TEST123456789",
+        "item_title": "Test Auction Item",
+        "final_price": 125.50,
+        "seller_username": "testseller123",
+        "seller_paypal": "seller@example.com",
+        "payment_required": true,
+        "record_id": "recABC123456789",
+        "item_url": "https://ebay.com/itm/TEST123456789"
+      },
+      "item_sold": {
+        "item_id": "LIST987654321",
+        "sale_price": 199.99,
+        "buyer_username": "buyer456",
+        "buyer_name": "John Doe",
+        "buyer_address": {
+          "street1": "123 Main St",
+          "street2": "Apt 4B",
+          "city": "Springfield",
+          "state": "IL",
+          "postal_code": "62701",
+          "country": "US"
+        }
+      }
+    }
+  },
+  "environment_templates": {
+    "development": {
+      "ebay": {
+        "sandbox_mode": true,
+        "rate_limit_buffer": 0.8
+      },
+      "openai": {
+        "model": "gpt-3.5-turbo",
+        "temperature": 0.3
+      },
+      "safety": {
+        "daily_spending_limit": 50,
+        "max_bid_per_item": 25
+      }
+    },
+    "production": {
+      "ebay": {
+        "sandbox_mode": false,
+        "rate_limit_buffer": 0.9
+      },
+      "openai": {
+        "model": "gpt-4",
+        "temperature": 0.3
+      },
+      "safety": {
+        "daily_spending_limit": 200,
+        "max_bid_per_item": 100
+      }
+    }
+  },
+  "make_scenario_templates": {
+    "basic_discovery": {
+      "name": "Basic Auction Discovery",
+      "schedule": "every 60 minutes",
+      "search_limit": 25,
+      "filters": ["seller_feedback > 95", "price < 200"]
+    },
+    "premium_discovery": {
+      "name": "Premium Item Discovery", 
+      "schedule": "every 30 minutes",
+      "search_limit": 50,
+      "filters": ["seller_feedback > 98", "price < 500", "branded_items_only"]
+    }
+  },
+  "performance_benchmarks": {
+    "success_metrics": {
+      "win_rate": "> 15%",
+      "roi": "> 25%",
+      "avg_profit_per_item": "> $20",
+      "time_to_sell": "< 10 days"
+    },
+    "alert_thresholds": {
+      "low_win_rate": "< 10%",
+      "negative_roi": "< 0%",
+      "high_loss_rate": "> 20%",
+      "slow_sales": "> 21 days"
+    }
+  }
+}
