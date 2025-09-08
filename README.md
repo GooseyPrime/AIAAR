@@ -35,13 +35,23 @@ This system provides a complete automated auction assistant that can run 24/7 wi
 4. Import Make.com scenarios from `/make-scenarios/`
 5. Set up Airtable database using `/database/schema.json`
 
+## Error Handling & Troubleshooting
+
+This project implements robust error handling across all automation scripts and Make.com scenarios. All shell scripts use `set -euo pipefail` and comprehensive logging to minimize silent failures.
+
+**🚨 If you encounter issues, check the [Troubleshooting Guide](docs/troubleshooting.md) first** - it contains detailed solutions for common problems and our complete error handling strategy.
+
+**Error logs are located in:**
+- `logs/setup.log` - General setup activities
+- `logs/setup_errors.log` - Detailed error information
+
 ## Documentation
 
 - [Setup Guide](docs/setup-guide.md)
 - [API Configuration](docs/api-configuration.md)
 - [Make.com Scenarios](docs/scenarios-guide.md)
 - [Database Schema](docs/database-schema.md)
-- [Troubleshooting](docs/troubleshooting.md)
+- **[Troubleshooting Guide](docs/troubleshooting.md)** ⭐ Start here for error resolution
 
 ## License
 
