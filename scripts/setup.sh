@@ -3,34 +3,144 @@
 # AIAAR Setup Script
 # Automated setup for Airtable database and basic configuration
 
-set -e
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+CONFIG_FILE="$REPO_ROOT/config/environment.yml"
+CONFIG_TEMPLATE="$REPO_ROOT/config/environment.template.yml"
+ENV_FILE="$REPO_ROOT/.env"
+DRY_RUN=false
+
+load_env_file() {
+    local env_file="$1"
+
+    while IFS='=' read -r key value; do
+        if [ -z "${key// }" ] || [[ "$key" =~ ^[[:space:]]*# ]]; then
+            continue
+        fi
+
+        key="$(echo "$key" | xargs)"
+        value="$(echo "${value:-}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+        value="${value%\"}"
+        value="${value#\"}"
+        value="${value%\'}"
+        value="${value#\'}"
+        export "$key=$value"
+    done < "$env_file"
+}
+
+yaml_value() {
+    local section="$1"
+    local key="$2"
+    local file="$3"
+
+    awk -v section="$section" -v key="$key" '
+        $0 ~ "^[[:space:]]*" section ":[[:space:]]*$" { in_section=1; next }
+        in_section && $0 ~ "^[^[:space:]]" { in_section=0 }
+        in_section && $0 ~ "^[[:space:]]+" key ":[[:space:]]*" {
+            sub("^[[:space:]]+" key ":[[:space:]]*", "", $0)
+            print $0
+            exit
+        }
+    ' "$file"
+}
+
+strip_wrapping_quotes() {
+    local value="${1:-}"
+    value="${value%\"}"
+    value="${value#\"}"
+    value="${value%\'}"
+    value="${value#\'}"
+    printf '%s' "$value"
+}
+
+populate_from_config() {
+    if [ ! -f "$CONFIG_FILE" ]; then
+        return
+    fi
+
+    AIRTABLE_API_KEY="${AIRTABLE_API_KEY:-$(strip_wrapping_quotes "$(yaml_value airtable api_key "$CONFIG_FILE")")}"
+    AIRTABLE_BASE_ID="${AIRTABLE_BASE_ID:-$(strip_wrapping_quotes "$(yaml_value airtable base_id "$CONFIG_FILE")")}"
+    EBAY_CLIENT_ID="${EBAY_CLIENT_ID:-$(strip_wrapping_quotes "$(yaml_value ebay client_id "$CONFIG_FILE")")}"
+    EBAY_CLIENT_SECRET="${EBAY_CLIENT_SECRET:-$(strip_wrapping_quotes "$(yaml_value ebay client_secret "$CONFIG_FILE")")}"
+    EBAY_AUTH_TOKEN="${EBAY_AUTH_TOKEN:-$(strip_wrapping_quotes "$(yaml_value ebay auth_token "$CONFIG_FILE")")}"
+    OPENAI_API_KEY="${OPENAI_API_KEY:-$(strip_wrapping_quotes "$(yaml_value openai api_key "$CONFIG_FILE")")}"
+    MAKE_WEBHOOK_BASE_URL="${MAKE_WEBHOOK_BASE_URL:-$(strip_wrapping_quotes "$(yaml_value make webhook_base_url "$CONFIG_FILE")")}"
+
+    export AIRTABLE_API_KEY AIRTABLE_BASE_ID EBAY_CLIENT_ID EBAY_CLIENT_SECRET EBAY_AUTH_TOKEN OPENAI_API_KEY MAKE_WEBHOOK_BASE_URL
+}
+
+print_dry_run() {
+    echo "🧪 Dry run only - no live API calls will be made."
+    echo "Would validate:"
+    echo "  - Airtable credentials and base access"
+    echo "  - eBay API credentials"
+    echo "  - OpenAI API credentials"
+    echo "  - Airtable test record creation and cleanup"
+    echo "  - local directories: logs/, backups/, temp/"
+
+    if [ -f "$ENV_FILE" ] || [ -f "$CONFIG_FILE" ]; then
+        echo "Configuration sources detected:"
+        [ -f "$ENV_FILE" ] && echo "  - .env"
+        [ -f "$CONFIG_FILE" ] && echo "  - config/environment.yml"
+    else
+        echo "No credentials found. Copy .env.example to .env and/or config/environment.template.yml to config/environment.yml to run the live setup later."
+    fi
+}
+
+for arg in "$@"; do
+    case "$arg" in
+        --dry-run)
+            DRY_RUN=true
+            ;;
+        *)
+            echo "❌ Unknown argument: $arg"
+            echo "Usage: ./scripts/setup.sh [--dry-run]"
+            exit 1
+            ;;
+    esac
+done
+
+cd "$REPO_ROOT"
 
 echo "🚀 AIAAR Setup Script"
 echo "===================="
+
+if [ -f "$ENV_FILE" ]; then
+    echo "📖 Loading .env"
+    load_env_file "$ENV_FILE"
+fi
+
+if [ -f "$CONFIG_FILE" ]; then
+    echo "📖 Reading configuration from config/environment.yml"
+    populate_from_config
+fi
+
+if [ "$DRY_RUN" = true ]; then
+    print_dry_run
+    exit 0
+fi
 
 # Check if required tools are installed
 command -v curl >/dev/null 2>&1 || { echo "❌ curl is required but not installed. Aborting." >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "❌ jq is required but not installed. Aborting." >&2; exit 1; }
 
 # Check for configuration file
-if [ ! -f "config/environment.yml" ]; then
+if [ ! -f "$CONFIG_FILE" ] && [ ! -f "$ENV_FILE" ]; then
     echo "📝 Creating environment configuration..."
-    cp config/environment.template.yml config/environment.yml
+    cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"
     echo "✅ Environment template created at config/environment.yml"
-    echo "⚠️  Please edit config/environment.yml with your API keys before continuing"
+    echo "⚠️  Please edit config/environment.yml or .env with your API keys before continuing"
     exit 1
 fi
-
-# Source the configuration (convert YAML to env vars)
-echo "📖 Reading configuration..."
-export $(grep -v '^#' config/environment.yml | grep -v '^$' | sed 's/: */=/' | sed 's/ *$//')
 
 # Verify required environment variables
 required_vars=("AIRTABLE_API_KEY" "AIRTABLE_BASE_ID" "EBAY_CLIENT_ID" "OPENAI_API_KEY")
 for var in "${required_vars[@]}"; do
-    if [ -z "${!var}" ]; then
+    if [ -z "${!var:-}" ]; then
         echo "❌ Required environment variable $var is not set"
-        echo "Please update config/environment.yml with your API keys"
+        echo "Please update .env or config/environment.yml with your API keys"
         exit 1
     fi
 done
