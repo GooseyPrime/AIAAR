@@ -116,7 +116,9 @@ load_env_file() {
 
         case "$key" in
             AIRTABLE_API_KEY|AIRTABLE_API_BASE_URL|AIRTABLE_BASE_ID|AIRTABLE_HEALTHCHECK_TABLE|MAKE_HEALTHCHECK_URL|MAKE_WEBHOOK_BASE_URL)
-                declare -gx "$key=$value"
+                if [ -z "${!key+x}" ]; then
+                    declare -gx "$key=$value"
+                fi
                 ;;
         esac
     done < "$env_file"
@@ -145,19 +147,27 @@ is_valid_airtable_base_id() {
 
 url_encode() {
     local value="${1:-}"
+    local encoded=""
+    local hex
+    local decimal
+    local char
 
-    if command -v python3 >/dev/null 2>&1; then
-        python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$value"
-        return
-    fi
+    while IFS= read -r hex; do
+        for hex in $hex; do
+            decimal=$((16#$hex))
+            if { [ "$decimal" -ge 48 ] && [ "$decimal" -le 57 ]; } || \
+               { [ "$decimal" -ge 65 ] && [ "$decimal" -le 90 ]; } || \
+               { [ "$decimal" -ge 97 ] && [ "$decimal" -le 122 ]; } || \
+               [ "$decimal" -eq 45 ] || [ "$decimal" -eq 46 ] || [ "$decimal" -eq 95 ] || [ "$decimal" -eq 126 ]; then
+                printf -v char "\\$(printf '%03o' "$decimal")"
+                encoded+="$char"
+            else
+                printf -v encoded '%s%%%02X' "$encoded" "$decimal"
+            fi
+        done
+    done < <(printf '%s' "$value" | od -An -tx1 -v)
 
-    if command -v python >/dev/null 2>&1; then
-        python -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$value"
-        return
-    fi
-
-    log_error "python3 or python is required to URL-encode Airtable table names"
-    exit 1
+    printf '%s\n' "$encoded"
 }
 
 check_make_endpoint() {

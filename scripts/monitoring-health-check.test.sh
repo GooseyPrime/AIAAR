@@ -48,6 +48,10 @@ test_make_host_fallback_accepts_redirect() {
 
 test_make_host_fallback_accepts_redirect_and_rejects_error_responses() {
     local output
+    MOCK_CURL_HTTP_CODE="204"
+    output="$(check_make_endpoint "https://hook.make.com" "host-fallback")"
+    assert_contains "$output" "Make.com host reachable (204)"
+
     MOCK_CURL_HTTP_CODE="301"
     output="$(check_make_endpoint "https://hook.make.com" "host-fallback")"
     assert_contains "$output" "Make.com host reachable (301)"
@@ -120,6 +124,24 @@ EOF
     [ "${MAKE_HEALTHCHECK_URL}" = "https://hook.make.com/path#fragment" ]
 }
 
+test_env_loader_preserves_existing_environment_values() {
+    local env_file
+    env_file="$(mktemp)"
+    trap 'rm -f "$env_file"' RETURN
+
+    cat > "$env_file" <<'EOF'
+AIRTABLE_API_KEY=file-key
+MAKE_WEBHOOK_BASE_URL=https://hook.make.com/file
+EOF
+
+    AIRTABLE_API_KEY="shell-key"
+    MAKE_WEBHOOK_BASE_URL="https://hook.make.com/shell"
+    load_env_file "$env_file"
+
+    [ "${AIRTABLE_API_KEY}" = "shell-key" ]
+    [ "${MAKE_WEBHOOK_BASE_URL}" = "https://hook.make.com/shell" ]
+}
+
 test_timeout_argument_validation() {
     local output
     local status
@@ -155,6 +177,7 @@ test_make_explicit_endpoint_requires_200
 test_airtable_status_branches
 test_env_loader_accepts_export_and_ignores_unlisted_keys
 test_env_loader_preserves_hash_inside_quotes
+test_env_loader_preserves_existing_environment_values
 test_timeout_argument_validation
 test_airtable_base_id_validation
 
