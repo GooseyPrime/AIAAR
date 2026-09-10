@@ -140,7 +140,13 @@ set_if_unset() {
 
 assert_no_newlines() {
     local var_name="$1"
-    local value="${!var_name:-}"
+    local value=""
+
+    if [ -z "${!var_name+x}" ]; then
+        return
+    fi
+
+    value="${!var_name}"
 
     case "$value" in
         *$'\n'*|*$'\r'*)
@@ -394,12 +400,13 @@ echo "✅ Configuration validated"
 log_message "INFO" "All required environment variables validated"
 
 assert_no_newlines AIRTABLE_API_KEY
-assert_no_newlines EBAY_CLIENT_ID
-assert_no_newlines EBAY_CLIENT_SECRET
-assert_no_newlines EBAY_AUTH_TOKEN
 assert_no_newlines OPENAI_API_KEY
 
-if [ -z "${EBAY_AUTH_TOKEN:-}" ] || is_placeholder_value "$EBAY_AUTH_TOKEN"; then
+if [ -n "${EBAY_AUTH_TOKEN:-}" ] && ! is_placeholder_value "$EBAY_AUTH_TOKEN"; then
+    assert_no_newlines EBAY_AUTH_TOKEN
+elif [ -n "${EBAY_CLIENT_ID:-}" ] && [ -n "${EBAY_CLIENT_SECRET:-}" ] && ! is_placeholder_value "$EBAY_CLIENT_ID" && ! is_placeholder_value "$EBAY_CLIENT_SECRET"; then
+    assert_no_newlines EBAY_CLIENT_ID
+    assert_no_newlines EBAY_CLIENT_SECRET
     log_message "INFO" "Requesting eBay access token from client credentials"
     EBAY_AUTH_TOKEN="$(fetch_ebay_auth_token)"
     export EBAY_AUTH_TOKEN
