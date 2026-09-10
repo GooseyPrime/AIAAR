@@ -172,12 +172,14 @@ check_airtable_endpoint() {
         "$url" || true)
 
     if [ "$http_code" = "200" ]; then
-        echo "✅ Airtable API reachable ($http_code)"
-        log_message "INFO" "Airtable API reachable with HTTP $http_code"
+        echo "✅ Airtable table read succeeded ($http_code)"
+        log_message "INFO" "Airtable table read succeeded with HTTP $http_code"
         return 0
     fi
 
-    if [ "$http_code" = "404" ] || [ "$http_code" = "422" ]; then
+    if [ "$http_code" = "401" ] || [ "$http_code" = "403" ]; then
+        log_error "Airtable auth or permission check failed for the configured probe table ($airtable_table) with HTTP $http_code"
+    elif [ "$http_code" = "404" ] || [ "$http_code" = "422" ]; then
         log_error "Airtable API check failed for the configured probe table ($airtable_table) with HTTP $http_code"
     else
         log_error "Airtable API check failed for $url with HTTP ${http_code:-000}"

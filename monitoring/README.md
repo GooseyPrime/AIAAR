@@ -131,7 +131,7 @@ Then run it live in production with environment values loaded:
 What it checks:
 
 - Make.com endpoint reachability using `MAKE_WEBHOOK_BASE_URL` (defaults to `https://hook.make.com`)
-- Airtable read access against a designated existing table using `AIRTABLE_API_KEY`, `AIRTABLE_BASE_ID`, and `AIRTABLE_HEALTHCHECK_TABLE` (defaults to `Target Items`)
+- Airtable table-read success against a designated existing table using `AIRTABLE_API_KEY`, `AIRTABLE_BASE_ID`, and `AIRTABLE_HEALTHCHECK_TABLE` (defaults to `Target Items`), which also surfaces auth/permission problems separately from missing-table problems
 
 What it does **not** check:
 
