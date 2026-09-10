@@ -133,10 +133,6 @@ load_env_file() {
                 value="${value%\'}"
                 value="${value#\'}"
                 ;;
-            *)
-                value="${value%%[[:space:]]#*}"
-                value="$(echo "$value" | sed 's/[[:space:]]*$//')"
-                ;;
         esac
 
         export "$key=$value"
@@ -350,7 +346,7 @@ if [ ! -f "$CONFIG_FILE" ] && [ ! -f "$ENV_FILE" ]; then
 fi
 
 log_message "INFO" "Verifying required environment variables"
-required_vars=("AIRTABLE_API_KEY" "AIRTABLE_BASE_ID" "EBAY_CLIENT_ID" "EBAY_CLIENT_SECRET" "OPENAI_API_KEY")
+required_vars=("AIRTABLE_API_KEY" "AIRTABLE_BASE_ID" "OPENAI_API_KEY")
 for var in "${required_vars[@]}"; do
     if [ -z "${!var:-}" ]; then
         log_error "Required environment variable $var is not set"
@@ -360,6 +356,17 @@ for var in "${required_vars[@]}"; do
     fi
     log_message "INFO" "Environment variable $var is set"
 done
+
+if [ -n "${EBAY_AUTH_TOKEN:-}" ]; then
+    log_message "INFO" "Using configured eBay auth token"
+elif [ -n "${EBAY_CLIENT_ID:-}" ] && [ -n "${EBAY_CLIENT_SECRET:-}" ]; then
+    log_message "INFO" "Using eBay client credentials to request an access token"
+else
+    log_error "Either EBAY_AUTH_TOKEN or both EBAY_CLIENT_ID and EBAY_CLIENT_SECRET must be set"
+    echo "❌ Set EBAY_AUTH_TOKEN or both EBAY_CLIENT_ID and EBAY_CLIENT_SECRET"
+    echo "Please update .env or config/environment.yml with your eBay credentials"
+    exit 1
+fi
 
 echo "✅ Configuration validated"
 log_message "INFO" "All required environment variables validated"
@@ -504,6 +511,11 @@ if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
 
     if ! record_id=$(response_body "$test_response" | jq -r '.id' 2>/dev/null); then
         log_error "Failed to parse record ID from response"
+        exit 1
+    fi
+
+    if [ -z "$record_id" ] || [ "$record_id" = "null" ]; then
+        log_error "Test record creation response did not include a valid record ID"
         exit 1
     fi
 
