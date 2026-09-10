@@ -160,6 +160,27 @@ response_http_code() {
     printf '%s\n' "$1" | sed -n '$p'
 }
 
+ensure_http_code() {
+    local http_code="$1"
+    local context="$2"
+
+    if ! [[ "$http_code" =~ ^[0-9]{3}$ ]]; then
+        log_error "$context returned invalid HTTP status: ${http_code:-missing}"
+        exit 1
+    fi
+}
+
+is_placeholder_value() {
+    case "${1:-}" in
+        ""|YOUR_*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 fetch_ebay_auth_token() {
     local basic_auth
     local token_response
@@ -182,7 +203,8 @@ fetch_ebay_auth_token() {
     fi
 
     http_code=$(response_http_code "$token_response")
-    if [ "$http_code" -ne 200 ]; then
+    ensure_http_code "$http_code" "eBay token request"
+    if [ "$http_code" != "200" ]; then
         log_error "eBay token request failed with HTTP $http_code"
         exit 1
     fi
@@ -203,15 +225,18 @@ yaml_value() {
 
     awk -v section="$section" -v key="$key" '
         {
+            match($0, /^[[:space:]]*/)
+            indent = RLENGTH
             trimmed = $0
             sub(/^[[:space:]]+/, "", trimmed)
 
             if (trimmed == section ":") {
                 in_section = 1
+                section_indent = indent
                 next
             }
 
-            if (in_section && $0 ~ "^[^[:space:]]") {
+            if (in_section && indent <= section_indent && trimmed != "" && trimmed !~ /^#/) {
                 in_section = 0
             }
 
@@ -356,7 +381,7 @@ for var in "${required_vars[@]}"; do
     log_message "INFO" "Environment variable $var is set"
 done
 
-if [ -n "${EBAY_AUTH_TOKEN:-}" ]; then
+if [ -n "${EBAY_AUTH_TOKEN:-}" ] && ! is_placeholder_value "$EBAY_AUTH_TOKEN"; then
     log_message "INFO" "Using configured eBay auth token"
 elif [ -n "${EBAY_CLIENT_ID:-}" ] && [ -n "${EBAY_CLIENT_SECRET:-}" ]; then
     log_message "INFO" "Using eBay client credentials to request an access token"
@@ -397,6 +422,7 @@ if ! airtable_response=$(curl -s -w "\n%{http_code}" \
 fi
 
 http_code=$(response_http_code "$airtable_response")
+ensure_http_code "$http_code" "Airtable API"
 log_message "INFO" "Airtable API responded with HTTP code: $http_code"
 
 if [ "$http_code" -eq 200 ]; then
@@ -428,6 +454,7 @@ if ! ebay_response=$(curl -s -w "\n%{http_code}" \
 fi
 
 http_code=$(response_http_code "$ebay_response")
+ensure_http_code "$http_code" "eBay API"
 log_message "INFO" "eBay API responded with HTTP code: $http_code"
 
 if [ "$http_code" -eq 200 ]; then
@@ -454,6 +481,7 @@ if ! openai_response=$(curl -s -w "\n%{http_code}" \
 fi
 
 http_code=$(response_http_code "$openai_response")
+ensure_http_code "$http_code" "OpenAI API"
 log_message "INFO" "OpenAI API responded with HTTP code: $http_code"
 
 if [ "$http_code" -eq 200 ]; then
@@ -502,6 +530,7 @@ if ! test_response=$(curl -s -w "\n%{http_code}" \
 fi
 
 http_code=$(response_http_code "$test_response")
+ensure_http_code "$http_code" "Airtable test record creation"
 log_message "INFO" "Test record creation responded with HTTP code: $http_code"
 
 if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
@@ -532,6 +561,7 @@ if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
     fi
 
     delete_http_code=$(response_http_code "$delete_response")
+    ensure_http_code "$delete_http_code" "Airtable test record cleanup"
     if [ "$delete_http_code" -ne 200 ]; then
         log_error "Failed to delete test record with HTTP $delete_http_code"
         exit 1
