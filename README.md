@@ -30,8 +30,8 @@ This project contains configuration, documentation, and helper scripts for a par
 ## Quick Start
 
 1. Clone this repository
-2. Copy `.env.example` to `.env`
-3. (Optional) Copy `config/environment.template.yml` to `config/environment.yml` for non-secret settings that are not already set in `.env`
+2. Copy `.env.example` to `.env` and add your real API keys there
+3. (Optional) Copy `config/environment.example.yml` to `config/environment.yml` for non-secret local settings that are not already set in `.env`
 4. Run `./scripts/health-check.sh`
 5. Follow the setup guide in `docs/setup-guide.md`
 
@@ -39,10 +39,11 @@ This project contains configuration, documentation, and helper scripts for a par
 
 1. From the repository root, create a local secrets file:
    - `cp .env.example .env`
-2. Edit `.env` and replace placeholder values with your own credentials.
+2. Edit `.env` and replace placeholder values with your own credentials. Keep API keys and passwords in `.env`, not in tracked YAML files.
 3. If you want to customize non-secret defaults such as sandbox mode or webhook URLs that are not already set in `.env`, copy:
-   - `cp config/environment.template.yml config/environment.yml`
+   - `cp config/environment.example.yml config/environment.yml`
    - `.env` remains the source of truth for secrets and any values already defined there.
+   - `config/environment.yml` is ignored by Git so you can keep workstation-specific overrides out of version control.
 4. Run the dry-run command first:
    - `./scripts/health-check.sh`
    - This prints the live setup actions it would take and skips the live API calls.
