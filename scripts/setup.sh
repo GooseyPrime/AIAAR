@@ -8,7 +8,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONFIG_FILE="$REPO_ROOT/config/environment.yml"
-CONFIG_TEMPLATE="$REPO_ROOT/config/environment.template.yml"
+CONFIG_TEMPLATE="$REPO_ROOT/config/environment.example.yml"
 ENV_FILE="$REPO_ROOT/.env"
 LOG_DIR="$REPO_ROOT/logs"
 LOG_FILE="$LOG_DIR/setup.log"
@@ -307,7 +307,7 @@ print_dry_run() {
         [ -f "$ENV_FILE" ] && echo "  - .env"
         [ -f "$CONFIG_FILE" ] && echo "  - config/environment.yml"
     else
-        echo "No credentials found. Copy .env.example to .env and/or config/environment.template.yml to config/environment.yml to run the live setup later."
+        echo "No credentials found. Copy .env.example to .env for API keys and, if needed, config/environment.example.yml to config/environment.yml for local non-secret overrides."
     fi
 }
 
@@ -362,14 +362,14 @@ fi
 log_message "INFO" "All required dependencies found"
 
 if [ ! -f "$CONFIG_FILE" ] && [ ! -f "$ENV_FILE" ]; then
-    log_message "WARN" "Configuration files not found, creating template"
+    log_message "WARN" "Configuration files not found, creating example configuration"
     echo "📝 Creating environment configuration..."
     if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
-        log_error "Failed to copy environment template"
+        log_error "Failed to copy environment example"
         exit 1
     fi
-    echo "✅ Environment template created at config/environment.yml"
-    echo "⚠️  Please edit config/environment.yml or .env with your API keys before continuing"
+    echo "✅ Local environment configuration created at config/environment.yml from config/environment.example.yml"
+    echo "⚠️  Please add API keys to .env before continuing. Use config/environment.yml only for local non-secret overrides when possible."
     exit 1
 fi
 
@@ -379,7 +379,7 @@ for var in "${required_vars[@]}"; do
     if [ -z "${!var:-}" ]; then
         log_error "Required environment variable $var is not set"
         echo "❌ Required environment variable $var is not set"
-        echo "Please update .env or config/environment.yml with your API keys"
+        echo "Please update .env with your API keys, or config/environment.yml if you intentionally keep local credentials there"
         exit 1
     fi
     log_message "INFO" "Environment variable $var is set"
@@ -392,7 +392,7 @@ elif [ -n "${EBAY_CLIENT_ID:-}" ] && [ -n "${EBAY_CLIENT_SECRET:-}" ] && ! is_pl
 else
     log_error "Set a real EBAY_AUTH_TOKEN or non-placeholder EBAY_CLIENT_ID and EBAY_CLIENT_SECRET"
     echo "❌ Set EBAY_AUTH_TOKEN or both EBAY_CLIENT_ID and EBAY_CLIENT_SECRET to real values"
-    echo "Please update .env or config/environment.yml with your eBay credentials"
+    echo "Please update .env with your eBay credentials, or config/environment.yml if you intentionally keep local credentials there"
     exit 1
 fi
 

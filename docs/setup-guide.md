@@ -54,25 +54,22 @@ Before setting up the Automated Auction Assistant, ensure you have:
 ## Step 2: Environment Configuration
 
 1. Copy `.env.example` to `.env`
-2. Copy `config/environment.template.yml` to `config/environment.yml` if you want to add non-secret defaults that are not already set in `.env`
-3. Fill in API keys in `.env` and any optional configuration values in `config/environment.yml`:
+2. Copy `config/environment.example.yml` to `config/environment.yml` if you want to add non-secret defaults that are not already set in `.env`
+3. Fill in API keys in `.env` and any optional non-secret configuration values in `config/environment.yml`:
    - `.env` remains the source of truth for secrets and any values already defined there.
+   - Keep real API keys and passwords out of `config/environment.yml` whenever possible, even though the local file is gitignored.
 
 ```yaml
 # eBay Configuration
 ebay:
-  client_id: "YOUR_EBAY_CLIENT_ID"
-  client_secret: "YOUR_EBAY_CLIENT_SECRET"
-  auth_token: "YOUR_EBAY_AUTH_TOKEN"
   marketplace_id: "EBAY_US"
   sandbox_mode: true  # Set to false for production
 
 # OpenAI Configuration
 openai:
-  api_key: "YOUR_OPENAI_API_KEY"
   model: "gpt-4"
 
-# Continue for all services...
+# Add API keys to .env and continue optional non-secret overrides here...
 ```
 
 ## Step 3: Airtable Database Setup
