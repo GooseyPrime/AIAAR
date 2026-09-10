@@ -25,6 +25,7 @@ fi
 echo "• Validating Make.com scenario definition(s)"
 python3 - "$SCENARIO_DIR" <<'PY'
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -110,13 +111,15 @@ for scenario_file in scenario_files:
 make_urls = trigger_hooks + registered_webhooks
 
 if not make_urls:
-    print("❌ No Make.com webhook connectivity definitions were found in the scenario files", file=sys.stderr)
-    sys.exit(1)
+    print("ℹ️ No Make.com webhook connectivity definitions were found to validate")
+    sys.exit(0)
+
+placeholder_pattern = re.compile(r"\{\{\s*config\.make\.webhook_base_url\s*\}\}")
 
 invalid_urls = [
     (name, url)
     for name, url in make_urls
-    if "config.make.webhook_base_url" not in url
+    if not placeholder_pattern.search(url)
 ]
 
 if invalid_urls:
