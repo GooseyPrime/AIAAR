@@ -56,6 +56,9 @@ test_make_host_fallback_accepts_redirect_and_rejects_error_responses() {
     output="$(check_make_endpoint "https://hook.make.com" "host-fallback")"
     assert_contains "$output" "Make.com host reachable (301)"
 
+    MOCK_CURL_HTTP_CODE="304"
+    assert_failure check_make_endpoint "https://hook.make.com" "host-fallback"
+
     MOCK_CURL_HTTP_CODE="404"
     assert_failure check_make_endpoint "https://hook.make.com" "host-fallback"
 
