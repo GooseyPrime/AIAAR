@@ -3,57 +3,177 @@
 # AIAAR Setup Script
 # Automated setup for Airtable database and basic configuration
 
-# Enable robust error handling
 set -euo pipefail
 
-# Error logging and handling
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOG_FILE="${SCRIPT_DIR}/../logs/setup.log"
-ERROR_LOG="${SCRIPT_DIR}/../logs/setup_errors.log"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+CONFIG_FILE="$REPO_ROOT/config/environment.yml"
+CONFIG_TEMPLATE="$REPO_ROOT/config/environment.template.yml"
+ENV_FILE="$REPO_ROOT/.env"
+LOG_DIR="$REPO_ROOT/logs"
+LOG_FILE="$LOG_DIR/setup.log"
+ERROR_LOG="$LOG_DIR/setup_errors.log"
+STATUS_FILE="$REPO_ROOT/.setup_status"
+DRY_RUN=false
 
-# Create logs directory if it doesn't exist
-mkdir -p "$(dirname "$LOG_FILE")"
+mkdir -p "$LOG_DIR"
+cd "$REPO_ROOT"
 
-# Function to log messages with timestamp
 log_message() {
     local level="$1"
     shift
     local message="$*"
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    local timestamp
+    timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
     echo "[$timestamp] [$level] $message" | tee -a "$LOG_FILE"
 }
 
-# Function to log errors
 log_error() {
     local message="$*"
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    local timestamp
+    timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
     echo "[$timestamp] [ERROR] $message" | tee -a "$ERROR_LOG" >&2
 }
 
-# Error handler function
+log_env_status() {
+    local var_name="$1"
+    if [ -n "${!var_name:-}" ]; then
+        printf '%s=present' "$var_name"
+    else
+        printf '%s=missing' "$var_name"
+    fi
+}
+
 error_handler() {
-    local line_number="$1"
-    local error_code="$2"
-    local command="$3"
+    trap - ERR
+    set +e
+
+    local line_number="${1:-unknown}"
+    local error_code="${2:-1}"
+    local command="${3:-unknown}"
+
     log_error "Script failed at line $line_number with exit code $error_code"
     log_error "Failed command: $command"
-    log_error "Current working directory: $(pwd)"
-    log_error "Environment variables: $(env | grep -E '^(AIRTABLE|EBAY|OPENAI)' || echo 'No relevant env vars found')"
+    log_error "Repository root: $REPO_ROOT"
+    log_error "Environment status: $(log_env_status AIRTABLE_API_KEY), $(log_env_status AIRTABLE_BASE_ID), $(log_env_status EBAY_CLIENT_ID), $(log_env_status OPENAI_API_KEY)"
     echo "❌ Setup failed. Check error logs at $ERROR_LOG for details." >&2
     exit "$error_code"
 }
 
-# Set up error trap
 trap 'error_handler ${LINENO} $? "$BASH_COMMAND"' ERR
 
-# Initialize logging
-log_message "INFO" "Starting AIAAR setup script"
+load_env_file() {
+    local env_file="$1"
+
+    while IFS='=' read -r key value; do
+        if [ -z "${key// }" ] || [[ "$key" =~ ^[[:space:]]*# ]]; then
+            continue
+        fi
+
+        key="$(echo "$key" | xargs)"
+        value="$(echo "${value:-}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+        value="${value%\"}"
+        value="${value#\"}"
+        value="${value%\'}"
+        value="${value#\'}"
+        export "$key=$value"
+    done < "$env_file"
+}
+
+yaml_value() {
+    local section="$1"
+    local key="$2"
+    local file="$3"
+
+    awk -v section="$section" -v key="$key" '
+        $0 ~ "^[[:space:]]*" section ":[[:space:]]*$" { in_section=1; next }
+        in_section && $0 ~ "^[^[:space:]]" { in_section=0 }
+        in_section && $0 ~ "^[[:space:]]+" key ":[[:space:]]*" {
+            sub("^[[:space:]]+" key ":[[:space:]]*", "", $0)
+            print $0
+            exit
+        }
+    ' "$file"
+}
+
+strip_wrapping_quotes() {
+    local value="${1:-}"
+    value="${value%\"}"
+    value="${value#\"}"
+    value="${value%\'}"
+    value="${value#\'}"
+    printf '%s' "$value"
+}
+
+populate_from_config() {
+    if [ ! -f "$CONFIG_FILE" ]; then
+        return
+    fi
+
+    AIRTABLE_API_KEY="${AIRTABLE_API_KEY:-$(strip_wrapping_quotes "$(yaml_value airtable api_key "$CONFIG_FILE")")}"
+    AIRTABLE_BASE_ID="${AIRTABLE_BASE_ID:-$(strip_wrapping_quotes "$(yaml_value airtable base_id "$CONFIG_FILE")")}"
+    EBAY_CLIENT_ID="${EBAY_CLIENT_ID:-$(strip_wrapping_quotes "$(yaml_value ebay client_id "$CONFIG_FILE")")}"
+    EBAY_CLIENT_SECRET="${EBAY_CLIENT_SECRET:-$(strip_wrapping_quotes "$(yaml_value ebay client_secret "$CONFIG_FILE")")}"
+    EBAY_AUTH_TOKEN="${EBAY_AUTH_TOKEN:-$(strip_wrapping_quotes "$(yaml_value ebay auth_token "$CONFIG_FILE")")}"
+    OPENAI_API_KEY="${OPENAI_API_KEY:-$(strip_wrapping_quotes "$(yaml_value openai api_key "$CONFIG_FILE")")}"
+    MAKE_WEBHOOK_BASE_URL="${MAKE_WEBHOOK_BASE_URL:-$(strip_wrapping_quotes "$(yaml_value make webhook_base_url "$CONFIG_FILE")")}"
+
+    export AIRTABLE_API_KEY AIRTABLE_BASE_ID EBAY_CLIENT_ID EBAY_CLIENT_SECRET EBAY_AUTH_TOKEN OPENAI_API_KEY MAKE_WEBHOOK_BASE_URL
+}
+
+print_dry_run() {
+    echo "🧪 Dry run only - no live API calls will be made."
+    echo "Would validate:"
+    echo "  - Airtable credentials and base access"
+    echo "  - eBay API credentials"
+    echo "  - OpenAI API credentials"
+    echo "  - Airtable test record creation and cleanup"
+    echo "  - local directories: logs/, backups/, temp/"
+
+    if [ -f "$ENV_FILE" ] || [ -f "$CONFIG_FILE" ]; then
+        echo "Configuration sources detected:"
+        [ -f "$ENV_FILE" ] && echo "  - .env"
+        [ -f "$CONFIG_FILE" ] && echo "  - config/environment.yml"
+    else
+        echo "No credentials found. Copy .env.example to .env and/or config/environment.template.yml to config/environment.yml to run the live setup later."
+    fi
+}
+
+for arg in "$@"; do
+    case "$arg" in
+        --dry-run)
+            DRY_RUN=true
+            ;;
+        *)
+            echo "❌ Unknown argument: $arg"
+            echo "Usage: ./scripts/setup.sh [--dry-run]"
+            exit 1
+            ;;
+    esac
+done
 
 echo "🚀 AIAAR Setup Script"
 echo "===================="
 log_message "INFO" "AIAAR Setup Script started"
 
-# Check if required tools are installed
+if [ -f "$ENV_FILE" ]; then
+    echo "📖 Loading .env"
+    log_message "INFO" "Loading configuration from .env"
+    load_env_file "$ENV_FILE"
+fi
+
+if [ -f "$CONFIG_FILE" ]; then
+    echo "📖 Reading configuration from config/environment.yml"
+    log_message "INFO" "Reading configuration from config/environment.yml"
+    populate_from_config
+fi
+
+if [ "$DRY_RUN" = true ]; then
+    log_message "INFO" "Running dry-run setup check"
+    print_dry_run
+    exit 0
+fi
+
 log_message "INFO" "Checking required dependencies"
 if ! command -v curl >/dev/null 2>&1; then
     log_error "curl is required but not installed"
@@ -69,37 +189,25 @@ fi
 
 log_message "INFO" "All required dependencies found"
 
-# Check for configuration file
-log_message "INFO" "Checking for configuration file"
-if [ ! -f "config/environment.yml" ]; then
-    log_message "WARN" "Environment configuration not found, creating template"
+if [ ! -f "$CONFIG_FILE" ] && [ ! -f "$ENV_FILE" ]; then
+    log_message "WARN" "Configuration files not found, creating template"
     echo "📝 Creating environment configuration..."
-    if ! cp config/environment.template.yml config/environment.yml; then
+    if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
         log_error "Failed to copy environment template"
         exit 1
     fi
     echo "✅ Environment template created at config/environment.yml"
-    echo "⚠️  Please edit config/environment.yml with your API keys before continuing"
-    log_message "INFO" "Environment template created, user action required"
+    echo "⚠️  Please edit config/environment.yml or .env with your API keys before continuing"
     exit 1
 fi
 
-# Source the configuration (convert YAML to env vars)
-log_message "INFO" "Reading configuration from environment.yml"
-echo "📖 Reading configuration..."
-if ! export $(grep -v '^#' config/environment.yml | grep -v '^$' | sed 's/: */=/' | sed 's/ *$//'); then
-    log_error "Failed to parse environment configuration"
-    exit 1
-fi
-
-# Verify required environment variables
 log_message "INFO" "Verifying required environment variables"
 required_vars=("AIRTABLE_API_KEY" "AIRTABLE_BASE_ID" "EBAY_CLIENT_ID" "OPENAI_API_KEY")
 for var in "${required_vars[@]}"; do
     if [ -z "${!var:-}" ]; then
         log_error "Required environment variable $var is not set"
         echo "❌ Required environment variable $var is not set"
-        echo "Please update config/environment.yml with your API keys"
+        echo "Please update .env or config/environment.yml with your API keys"
         exit 1
     fi
     log_message "INFO" "Environment variable $var is set"
@@ -108,12 +216,11 @@ done
 echo "✅ Configuration validated"
 log_message "INFO" "All required environment variables validated"
 
-# Test Airtable connection
 echo "🔗 Testing Airtable connection..."
 log_message "INFO" "Testing Airtable API connection"
 
 if ! airtable_response=$(curl -s -w "\n%{http_code}" \
-    -H "Authorization: Bearer $AIRTABLE_API_KEY" \
+    -H "Authorization: ******" \
     "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/Target%20Items?maxRecords=1" 2>/dev/null); then
     log_error "curl command failed for Airtable API test"
     exit 1
@@ -139,12 +246,11 @@ else
     exit 1
 fi
 
-# Test eBay API connection
 echo "🔗 Testing eBay API connection..."
 log_message "INFO" "Testing eBay API connection"
 
 if ! ebay_response=$(curl -s -w "\n%{http_code}" \
-    -H "Authorization: Bearer ${EBAY_AUTH_TOKEN:-}" \
+    -H "Authorization: ******" \
     -H "X-EBAY-C-MARKETPLACE-ID: EBAY_US" \
     "https://api.ebay.com/buy/browse/v1/item_summary/search?q=test&limit=1" 2>/dev/null); then
     log_error "curl command failed for eBay API test"
@@ -167,12 +273,11 @@ else
     exit 1
 fi
 
-# Test OpenAI API connection
 echo "🔗 Testing OpenAI API connection..."
 log_message "INFO" "Testing OpenAI API connection"
 
 if ! openai_response=$(curl -s -w "\n%{http_code}" \
-    -H "Authorization: Bearer $OPENAI_API_KEY" \
+    -H "Authorization: ******" \
     -H "Content-Type: application/json" \
     -d '{"model":"gpt-4","messages":[{"role":"user","content":"Hello"}],"max_tokens":5}' \
     "https://api.openai.com/v1/chat/completions" 2>/dev/null); then
@@ -196,11 +301,9 @@ else
     exit 1
 fi
 
-# Create initial test records
 echo "📊 Creating test data in Airtable..."
 log_message "INFO" "Creating test data in Airtable"
 
-# Create a test target item
 test_item_data='{
     "fields": {
         "itemId": "TEST-ITEM-001",
@@ -218,7 +321,7 @@ test_item_data='{
 
 if ! test_response=$(curl -s -w "\n%{http_code}" \
     -X POST \
-    -H "Authorization: Bearer $AIRTABLE_API_KEY" \
+    -H "Authorization: ******" \
     -H "Content-Type: application/json" \
     -d "$test_item_data" \
     "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/Target%20Items" 2>/dev/null); then
@@ -232,27 +335,25 @@ log_message "INFO" "Test record creation responded with HTTP code: $http_code"
 if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
     echo "✅ Test record created successfully"
     log_message "INFO" "Test record created successfully"
-    
-    # Extract record ID for cleanup
+
     if ! record_id=$(echo "$test_response" | head -n -1 | jq -r '.id' 2>/dev/null); then
         log_error "Failed to parse record ID from response"
         exit 1
     fi
-    
+
     echo "📝 Test record ID: $record_id"
     log_message "INFO" "Test record ID: $record_id"
-    
-    # Clean up test record
+
     echo "🧹 Cleaning up test record..."
     log_message "INFO" "Cleaning up test record"
-    
+
     if ! curl -s -X DELETE \
-        -H "Authorization: Bearer $AIRTABLE_API_KEY" \
+        -H "Authorization: ******" \
         "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/Target%20Items/$record_id" > /dev/null 2>&1; then
         log_error "Failed to delete test record"
         exit 1
     fi
-    
+
     echo "✅ Test record cleaned up"
     log_message "INFO" "Test record cleaned up successfully"
 else
@@ -261,7 +362,6 @@ else
     exit 1
 fi
 
-# Generate webhook URLs for Make.com
 echo "🔗 Generating webhook URLs..."
 log_message "INFO" "Generating webhook URLs for Make.com"
 
@@ -272,11 +372,10 @@ echo "  Item Sold: $webhook_base/item-sold"
 echo "  Shipping Update: $webhook_base/shipping-update"
 log_message "INFO" "Webhook URLs generated with base: $webhook_base"
 
-# Create directories for logs and backups
 echo "📁 Creating directories..."
 log_message "INFO" "Creating required directories"
 
-if ! mkdir -p logs backups temp; then
+if ! mkdir -p "$LOG_DIR" "$REPO_ROOT/backups" "$REPO_ROOT/temp"; then
     log_error "Failed to create required directories"
     exit 1
 fi
@@ -284,7 +383,6 @@ fi
 echo "✅ Directories created"
 log_message "INFO" "Required directories created successfully"
 
-# Generate summary report
 echo ""
 echo "🎉 Setup Complete!"
 echo "=================="
@@ -312,10 +410,9 @@ echo "- Start with small spending limits and increase gradually"
 echo "- Monitor all automated activities closely"
 echo "- Set up proper error handling and notifications"
 
-# Create a status file
 log_message "INFO" "Creating setup status file"
 
-if ! cat > .setup_status << EOF
+if ! cat > "$STATUS_FILE" << EOF
 {
     "setup_completed": true,
     "setup_date": "$(date -Iseconds)",

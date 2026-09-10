@@ -1,10 +1,10 @@
-# AIAAR - Automated Auction Assistant - Make.com Implementation
+# AIAAR - Auction Assistant Scaffold - Make.com Implementation
 
-A comprehensive Make.com integration system for automated auction discovery, bidding, inventory management, and resale operations on eBay.
+This repository is a 2025 Make.com scaffold for auction discovery, bidding, inventory management, and resale experiments on eBay. It is not documented here as a production deployment.
 
 ## Overview
 
-This system provides a complete automated auction assistant that can run 24/7 with minimal supervision while maintaining profitability and managing risk through Make.com automation scenarios.
+This project contains configuration, documentation, and helper scripts for a parallel product prototype built around Make.com scenarios.
 
 ## Features
 
@@ -30,10 +30,29 @@ This system provides a complete automated auction assistant that can run 24/7 wi
 ## Quick Start
 
 1. Clone this repository
-2. Follow the setup guide in `/docs/setup-guide.md`
-3. Configure your API keys in `/config/environment.yml`
-4. Import Make.com scenarios from `/make-scenarios/`
-5. Set up Airtable database using `/database/schema.json`
+2. Copy `/home/runner/work/AIAAR/AIAAR/.env.example` to `/home/runner/work/AIAAR/AIAAR/.env`
+3. (Optional) Copy `/home/runner/work/AIAAR/AIAAR/config/environment.template.yml` to `/home/runner/work/AIAAR/AIAAR/config/environment.yml` for non-secret settings
+4. Run `/home/runner/work/AIAAR/AIAAR/scripts/health-check.sh`
+5. Follow the setup guide in `/home/runner/work/AIAAR/AIAAR/docs/setup-guide.md`
+
+## Run locally
+
+1. From the repository root, create a local secrets file:
+   - `cp /home/runner/work/AIAAR/AIAAR/.env.example /home/runner/work/AIAAR/AIAAR/.env`
+2. Edit `/home/runner/work/AIAAR/AIAAR/.env` and replace placeholder values with your own credentials.
+3. If you want to customize non-secret defaults such as sandbox mode or webhook URLs, copy:
+   - `cp /home/runner/work/AIAAR/AIAAR/config/environment.template.yml /home/runner/work/AIAAR/AIAAR/config/environment.yml`
+4. Run the dry-run command first:
+   - `/home/runner/work/AIAAR/AIAAR/scripts/health-check.sh`
+   - This prints the live setup actions it would take and exits with status `0` even when credentials are missing.
+5. When you are ready to exercise live integrations, run:
+   - `/home/runner/work/AIAAR/AIAAR/scripts/setup.sh`
+
+## Dry run
+
+- `/home/runner/work/AIAAR/AIAAR/scripts/health-check.sh`
+- Equivalent direct command: `/home/runner/work/AIAAR/AIAAR/scripts/setup.sh --dry-run`
+- The dry run never calls Airtable, eBay, or OpenAI. It only reports what the live setup would do.
 
 ## Error Handling & Troubleshooting
 
