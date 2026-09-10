@@ -391,18 +391,6 @@ if [ ! -f "$ENV_FILE" ]; then
     fi
 fi
 
-if [ ! -f "$CONFIG_FILE" ]; then
-    if [ -f "$CONFIG_TEMPLATE" ]; then
-        if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
-            log_error "Failed to copy environment example"
-            exit 1
-        fi
-        initialized_config=true
-    else
-        log_message "WARN" "Optional config example not found, skipping config/environment.yml initialization"
-    fi
-fi
-
 if [ "$initialized_env" = true ]; then
     log_message "WARN" "Initialized missing local configuration files from examples"
     echo "✅ Local environment files created:"
@@ -413,12 +401,6 @@ if [ "$initialized_env" = true ]; then
     else
         echo "⚠️  Review and replace placeholder API keys in .env before rerunning live setup."
     fi
-    exit 1
-elif [ "$initialized_config" = true ]; then
-    log_message "WARN" "Initialized missing local configuration files from examples"
-    echo "✅ Local environment files created:"
-    echo "   - config/environment.yml from config/environment.example.yml"
-    echo "⚠️  Review config/environment.yml for local overrides before rerunning live setup."
     exit 1
 fi
 
