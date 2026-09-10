@@ -113,7 +113,7 @@ load_env_file() {
         fi
 
         case "$key" in
-            AIRTABLE_API_KEY|AIRTABLE_BASE_ID|AIRTABLE_HEALTHCHECK_TABLE|MAKE_HEALTHCHECK_URL|MAKE_WEBHOOK_BASE_URL)
+            AIRTABLE_API_KEY|AIRTABLE_API_BASE_URL|AIRTABLE_BASE_ID|AIRTABLE_HEALTHCHECK_TABLE|MAKE_HEALTHCHECK_URL|MAKE_WEBHOOK_BASE_URL)
                 declare -gx "$key=$value"
                 ;;
         esac
@@ -160,7 +160,7 @@ check_make_endpoint() {
     local http_code
 
     http_code=$(curl -sS --max-time "$TIMEOUT" -o /dev/null -w "%{http_code}" "$url" || true)
-    if [ "$probe_mode" = "host-fallback" ] && [[ "$http_code" =~ ^[1-4][0-9]{2}$ ]]; then
+    if [ "$probe_mode" = "host-fallback" ] && [[ "$http_code" =~ ^[23][0-9]{2}$ ]]; then
         echo "✅ Make.com host reachable ($http_code)"
         log_message "INFO" "Make.com host reachable with HTTP $http_code"
         return 0
@@ -203,80 +203,87 @@ check_airtable_endpoint() {
     return 1
 }
 
-while [ "$#" -gt 0 ]; do
-    case "$1" in
-        --dry-run)
-            DRY_RUN=true
-            shift
-            ;;
-        --timeout)
-            if [ "$#" -lt 2 ]; then
+main() {
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --dry-run)
+                DRY_RUN=true
+                shift
+                ;;
+            --timeout)
+                if [ "$#" -lt 2 ]; then
+                    usage
+                    exit 1
+                fi
+                if ! [[ "$2" =~ ^[0-9]+$ ]] || [ "$2" -le 0 ]; then
+                    echo "❌ --timeout must be a positive integer number of seconds." >&2
+                    exit 1
+                fi
+                TIMEOUT="$2"
+                shift 2
+                ;;
+            --help|-h)
+                usage
+                exit 0
+                ;;
+            *)
+                echo "❌ Unknown argument: $1" >&2
                 usage
                 exit 1
-            fi
-            if ! [[ "$2" =~ ^[0-9]+$ ]] || [ "$2" -le 0 ]; then
-                echo "❌ --timeout must be a positive integer number of seconds." >&2
-                exit 1
-            fi
-            TIMEOUT="$2"
-            shift 2
-            ;;
-        --help|-h)
-            usage
-            exit 0
-            ;;
-        *)
-            echo "❌ Unknown argument: $1" >&2
-            usage
-            exit 1
-            ;;
-    esac
-done
+                ;;
+        esac
+    done
 
-if [ -f "$ENV_FILE" ]; then
-    load_env_file "$ENV_FILE"
-fi
-
-make_url="${MAKE_HEALTHCHECK_URL:-${MAKE_WEBHOOK_BASE_URL:-https://hook.make.com}}"
-make_probe_mode="host-fallback"
-if [ -n "${MAKE_HEALTHCHECK_URL:-}" ]; then
-    make_probe_mode="explicit-endpoint"
-fi
-airtable_table="${AIRTABLE_HEALTHCHECK_TABLE:-Target Items}"
-airtable_table_encoded="$(url_encode "$airtable_table")"
-airtable_url="https://api.airtable.com/v0/${AIRTABLE_BASE_ID:-YOUR_AIRTABLE_BASE_ID}/${airtable_table_encoded}?maxRecords=1"
-airtable_url_preview="https://api.airtable.com/v0/<base-id-redacted>/${airtable_table_encoded}?maxRecords=1"
-
-echo "📡 AIAAR production monitoring health check"
-echo "=========================================="
-
-if [ "$DRY_RUN" = true ]; then
-    echo "🧪 Dry run only - no live API calls will be made."
-    echo "Would probe Make.com endpoint: $make_url"
-    if [ -z "${MAKE_HEALTHCHECK_URL:-}" ]; then
-        echo "Make.com probe mode: host-level fallback via MAKE_WEBHOOK_BASE_URL"
-    else
-        echo "Make.com probe mode: explicit endpoint via MAKE_HEALTHCHECK_URL"
+    if [ -f "$ENV_FILE" ]; then
+        load_env_file "$ENV_FILE"
     fi
-    echo "Would probe Airtable endpoint: $airtable_url_preview"
-    echo "Airtable probe table: $airtable_table"
-    echo "Timeout: ${TIMEOUT}s"
-    exit 0
-fi
 
-if is_placeholder_value "${AIRTABLE_API_KEY:-}" || is_placeholder_value "${AIRTABLE_BASE_ID:-}"; then
-    log_error "AIRTABLE_API_KEY and AIRTABLE_BASE_ID must be set before running live checks"
-    echo "❌ Set AIRTABLE_API_KEY and AIRTABLE_BASE_ID in .env or the current shell." >&2
-    exit 1
-fi
+    make_url="${MAKE_HEALTHCHECK_URL:-${MAKE_WEBHOOK_BASE_URL:-https://hook.make.com}}"
+    make_probe_mode="host-fallback"
+    if [ -n "${MAKE_HEALTHCHECK_URL:-}" ]; then
+        make_probe_mode="explicit-endpoint"
+    fi
+    airtable_table="${AIRTABLE_HEALTHCHECK_TABLE:-Target Items}"
+    airtable_api_base_url="${AIRTABLE_API_BASE_URL:-https://api.airtable.com/v0}"
+    airtable_table_encoded="$(url_encode "$airtable_table")"
+    airtable_url="${airtable_api_base_url}/${AIRTABLE_BASE_ID:-YOUR_AIRTABLE_BASE_ID}/${airtable_table_encoded}?maxRecords=1"
+    airtable_url_preview="${airtable_api_base_url}/<base-id-redacted>/${airtable_table_encoded}?maxRecords=1"
 
-if [ -z "${airtable_table}" ]; then
-    log_error "AIRTABLE_HEALTHCHECK_TABLE must reference an existing Airtable table"
-    echo "❌ Set AIRTABLE_HEALTHCHECK_TABLE to an existing Airtable table name." >&2
-    exit 1
-fi
+    echo "📡 AIAAR production monitoring health check"
+    echo "=========================================="
 
-log_message "INFO" "Starting monitoring health check"
-check_make_endpoint "$make_url" "$make_probe_mode"
-check_airtable_endpoint "$airtable_url" "$airtable_table"
-log_message "INFO" "Monitoring health check completed successfully"
+    if [ "$DRY_RUN" = true ]; then
+        echo "🧪 Dry run only - no live API calls will be made."
+        echo "Would probe Make.com endpoint: $make_url"
+        if [ -z "${MAKE_HEALTHCHECK_URL:-}" ]; then
+            echo "Make.com probe mode: host-level fallback via MAKE_WEBHOOK_BASE_URL"
+        else
+            echo "Make.com probe mode: explicit endpoint via MAKE_HEALTHCHECK_URL"
+        fi
+        echo "Would probe Airtable endpoint: $airtable_url_preview"
+        echo "Airtable probe table: $airtable_table"
+        echo "Timeout: ${TIMEOUT}s"
+        exit 0
+    fi
+
+    if is_placeholder_value "${AIRTABLE_API_KEY:-}" || is_placeholder_value "${AIRTABLE_BASE_ID:-}"; then
+        log_error "AIRTABLE_API_KEY and AIRTABLE_BASE_ID must be set before running live checks"
+        echo "❌ Set AIRTABLE_API_KEY and AIRTABLE_BASE_ID in .env or the current shell." >&2
+        exit 1
+    fi
+
+    if [ -z "${airtable_table}" ]; then
+        log_error "AIRTABLE_HEALTHCHECK_TABLE must reference an existing Airtable table"
+        echo "❌ Set AIRTABLE_HEALTHCHECK_TABLE to an existing Airtable table name." >&2
+        exit 1
+    fi
+
+    log_message "INFO" "Starting monitoring health check"
+    check_make_endpoint "$make_url" "$make_probe_mode"
+    check_airtable_endpoint "$airtable_url" "$airtable_table"
+    log_message "INFO" "Monitoring health check completed successfully"
+}
+
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    main "$@"
+fi
