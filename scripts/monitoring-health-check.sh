@@ -154,10 +154,17 @@ url_encode() {
 
 check_make_endpoint() {
     local url="$1"
+    local probe_mode="$2"
     local http_code
 
     http_code=$(curl -sS --max-time "$TIMEOUT" -o /dev/null -w "%{http_code}" "$url" || true)
-    if [ "$http_code" = "200" ]; then
+    if [ "$probe_mode" = "host-fallback" ] && [[ "$http_code" =~ ^(200|301|302|307|308)$ ]]; then
+        echo "✅ Make.com host reachable ($http_code)"
+        log_message "INFO" "Make.com host reachable with HTTP $http_code"
+        return 0
+    fi
+
+    if [ "$probe_mode" = "explicit-endpoint" ] && [ "$http_code" = "200" ]; then
         echo "✅ Make.com endpoint reachable ($http_code)"
         log_message "INFO" "Make.com endpoint reachable with HTTP $http_code"
         return 0
@@ -205,6 +212,10 @@ while [ "$#" -gt 0 ]; do
                 usage
                 exit 1
             fi
+            if ! [[ "$2" =~ ^[0-9]+$ ]] || [ "$2" -le 0 ]; then
+                echo "❌ --timeout must be a positive integer number of seconds." >&2
+                exit 1
+            fi
             TIMEOUT="$2"
             shift 2
             ;;
@@ -225,6 +236,10 @@ if [ -f "$ENV_FILE" ]; then
 fi
 
 make_url="${MAKE_HEALTHCHECK_URL:-${MAKE_WEBHOOK_BASE_URL:-https://hook.make.com}}"
+make_probe_mode="host-fallback"
+if [ -n "${MAKE_HEALTHCHECK_URL:-}" ]; then
+    make_probe_mode="explicit-endpoint"
+fi
 airtable_table="${AIRTABLE_HEALTHCHECK_TABLE:-Target Items}"
 airtable_table_encoded="$(url_encode "$airtable_table")"
 airtable_url="https://api.airtable.com/v0/${AIRTABLE_BASE_ID:-YOUR_AIRTABLE_BASE_ID}/${airtable_table_encoded}?maxRecords=1"
@@ -260,6 +275,6 @@ if [ -z "${airtable_table}" ]; then
 fi
 
 log_message "INFO" "Starting monitoring health check"
-check_make_endpoint "$make_url"
+check_make_endpoint "$make_url" "$make_probe_mode"
 check_airtable_endpoint "$airtable_url" "$airtable_table"
 log_message "INFO" "Monitoring health check completed successfully"
