@@ -22,27 +22,19 @@ if ! command -v python3 >/dev/null 2>&1; then
     exit 1
 fi
 
-scenario_files=()
-while IFS= read -r scenario_file; do
-    if [ -n "$scenario_file" ]; then
-        scenario_files+=("$scenario_file")
-    fi
-done <<EOF
-$(find "$SCENARIO_DIR" -maxdepth 1 -type f -name '*.json' | sort)
-EOF
-
-if [ "${#scenario_files[@]}" -eq 0 ]; then
-    echo "❌ No Make.com scenario definitions found in $SCENARIO_DIR" >&2
-    exit 1
-fi
-
-echo "• Validating ${#scenario_files[@]} Make.com scenario definition(s)"
-python3 - "${scenario_files[@]}" <<'PY'
+echo "• Validating Make.com scenario definition(s)"
+python3 - "$SCENARIO_DIR" <<'PY'
 import json
 import sys
 from pathlib import Path
 
-scenario_files = [Path(path) for path in sys.argv[1:]]
+scenario_dir = Path(sys.argv[1])
+scenario_files = sorted(path for path in scenario_dir.glob("*.json") if path.is_file())
+
+if not scenario_files:
+    print(f"❌ No Make.com scenario definitions found in {scenario_dir}", file=sys.stderr)
+    sys.exit(1)
+
 webhook_urls = []
 
 for scenario_file in scenario_files:
