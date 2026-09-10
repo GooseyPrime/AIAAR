@@ -394,6 +394,9 @@ fi
 
 if [ "$initialized_env" = true ]; then
     load_env_file "$ENV_FILE"
+fi
+
+if [ "$initialized_env" = true ] || [ "$initialized_config" = true ]; then
     if [ -f "$CONFIG_FILE" ]; then
         populate_from_config
     fi
@@ -417,9 +420,9 @@ fi
 log_message "INFO" "Verifying required environment variables"
 required_vars=("AIRTABLE_API_KEY" "AIRTABLE_BASE_ID" "OPENAI_API_KEY")
 for var in "${required_vars[@]}"; do
-    if [ -z "${!var:-}" ]; then
-        log_error "Required environment variable $var is not set"
-        echo "❌ Required environment variable $var is not set"
+    if [ -z "${!var:-}" ] || is_placeholder_value "${!var}"; then
+        log_error "Required environment variable $var is not set to a real value"
+        echo "❌ Required environment variable $var is not set to a real value"
         echo "Please update .env with your API keys, or config/environment.yml if you intentionally keep local credentials there"
         exit 1
     fi
