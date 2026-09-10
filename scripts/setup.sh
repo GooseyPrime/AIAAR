@@ -395,6 +395,8 @@ if [ "$initialized_env" = true ] || [ "$initialized_config" = true ]; then
     log_message "WARN" "Initialized missing local configuration files from examples"
     if [ "$initialized_env" = true ]; then
         load_env_file "$ENV_FILE"
+    elif [ "$initialized_config" = true ] && [ -f "$CONFIG_FILE" ]; then
+        populate_from_config
     fi
     echo "✅ Local environment files created:"
     [ "$initialized_env" = true ] && echo "   - .env from .env.example"
