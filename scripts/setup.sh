@@ -117,7 +117,6 @@ load_env_file() {
 
         value="${line#*=}"
         key="$(trim_whitespace "$key")"
-        key="$(trim_whitespace "$key")"
         value="$(trim_whitespace "${value:-}")"
         value="$(strip_inline_comment "$value")"
         if ! [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
@@ -396,7 +395,7 @@ fi
 echo "📊 Creating test data in Airtable..."
 log_message "INFO" "Creating test data in Airtable"
 
-test_item_id="TEST-ITEM-$(date +%s)"
+test_item_id="TEST-ITEM-$(date +%s%N)-$$"
 
 test_item_data='{
     "fields": {
