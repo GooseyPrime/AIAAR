@@ -377,19 +377,19 @@ if [ ! -f "$ENV_FILE" ]; then
         exit 1
     fi
     initialized_env=true
+fi
 
-    if [ ! -f "$CONFIG_FILE" ]; then
-        if [ ! -f "$CONFIG_TEMPLATE" ]; then
-            log_error "Missing required example file: $CONFIG_TEMPLATE"
-            echo "❌ Missing required example file: config/environment.example.yml" >&2
-            exit 1
-        fi
-        if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
-            log_error "Failed to copy environment example"
-            exit 1
-        fi
-        initialized_config=true
+if [ ! -f "$CONFIG_FILE" ]; then
+    if [ ! -f "$CONFIG_TEMPLATE" ]; then
+        log_error "Missing required example file: $CONFIG_TEMPLATE"
+        echo "❌ Missing required example file: config/environment.example.yml" >&2
+        exit 1
     fi
+    if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
+        log_error "Failed to copy environment example"
+        exit 1
+    fi
+    initialized_config=true
 fi
 
 if [ "$initialized_env" = true ] || [ "$initialized_config" = true ]; then
@@ -402,6 +402,8 @@ if [ "$initialized_env" = true ] || [ "$initialized_config" = true ]; then
         exit 1
     elif [ "$initialized_env" = true ]; then
         echo "ℹ️  Continuing with values already loaded from config/environment.yml for this run."
+    elif [ "$initialized_config" = true ]; then
+        echo "ℹ️  Continuing with values already loaded from .env for this run."
     fi
 fi
 
