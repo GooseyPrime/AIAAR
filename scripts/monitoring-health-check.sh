@@ -101,6 +101,8 @@ load_env_file() {
 
         value="${line#*=}"
         key="$(trim_whitespace "$key")"
+        key="${key#export }"
+        key="$(trim_whitespace "$key")"
         value="$(trim_whitespace "${value:-}")"
         value="$(strip_inline_comment "$value")"
         value="$(strip_wrapping_quotes "$value")"
@@ -133,23 +135,19 @@ is_placeholder_value() {
 
 url_encode() {
     local value="${1:-}"
-    local encoded=""
-    local i
-    local char
 
-    for ((i=0; i<${#value}; i++)); do
-        char="${value:i:1}"
-        case "$char" in
-            [a-zA-Z0-9.~_-])
-                encoded+="$char"
-                ;;
-            *)
-                printf -v encoded '%s%%%02X' "$encoded" "'$char"
-                ;;
-        esac
-    done
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$value"
+        return
+    fi
 
-    printf '%s' "$encoded"
+    if command -v python >/dev/null 2>&1; then
+        python -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$value"
+        return
+    fi
+
+    log_error "python3 or python is required to URL-encode Airtable table names"
+    exit 1
 }
 
 check_make_endpoint() {
@@ -158,7 +156,7 @@ check_make_endpoint() {
     local http_code
 
     http_code=$(curl -sS --max-time "$TIMEOUT" -o /dev/null -w "%{http_code}" "$url" || true)
-    if [ "$probe_mode" = "host-fallback" ] && [[ "$http_code" =~ ^(200|301|302|307|308)$ ]]; then
+    if [ "$probe_mode" = "host-fallback" ] && [[ "$http_code" =~ ^[1-5][0-9]{2}$ ]]; then
         echo "✅ Make.com host reachable ($http_code)"
         log_message "INFO" "Make.com host reachable with HTTP $http_code"
         return 0
