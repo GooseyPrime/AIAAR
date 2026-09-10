@@ -150,7 +150,20 @@ set_if_unset() {
 
     if [ -z "${!var_name+x}" ]; then
         printf -v "$var_name" '%s' "$value"
+        export "$var_name"
     fi
+}
+
+assert_no_newlines() {
+    local var_name="$1"
+    local value="${!var_name:-}"
+
+    case "$value" in
+        *$'\n'*|*$'\r'*)
+            log_error "Invalid newline detected in $var_name"
+            exit 1
+            ;;
+    esac
 }
 
 yaml_value() {
@@ -289,6 +302,10 @@ done
 echo "✅ Configuration validated"
 log_message "INFO" "All required environment variables validated"
 
+assert_no_newlines AIRTABLE_API_KEY
+assert_no_newlines EBAY_AUTH_TOKEN
+assert_no_newlines OPENAI_API_KEY
+
 printf -v airtable_auth_header '%s: %s %s' Authorization Bearer "$AIRTABLE_API_KEY"
 printf -v ebay_auth_header '%s: %s %s' Authorization Bearer "$EBAY_AUTH_TOKEN"
 printf -v openai_auth_header '%s: %s %s' Authorization Bearer "$OPENAI_API_KEY"
@@ -379,9 +396,11 @@ fi
 echo "📊 Creating test data in Airtable..."
 log_message "INFO" "Creating test data in Airtable"
 
+test_item_id="TEST-ITEM-$(date +%s)"
+
 test_item_data='{
     "fields": {
-        "itemId": "TEST-ITEM-001",
+        "itemId": "'"$test_item_id"'",
         "title": "Test Item for Setup Validation",
         "currentPrice": 25.00,
         "maxBid": 30.00,
