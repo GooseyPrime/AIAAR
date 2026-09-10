@@ -112,7 +112,11 @@ load_env_file() {
             exit 1
         fi
 
-        declare -gx "$key=$value"
+        case "$key" in
+            AIRTABLE_API_KEY|AIRTABLE_BASE_ID|AIRTABLE_HEALTHCHECK_TABLE|MAKE_HEALTHCHECK_URL|MAKE_WEBHOOK_BASE_URL)
+                declare -gx "$key=$value"
+                ;;
+        esac
     done < "$env_file"
 }
 
@@ -156,7 +160,7 @@ check_make_endpoint() {
     local http_code
 
     http_code=$(curl -sS --max-time "$TIMEOUT" -o /dev/null -w "%{http_code}" "$url" || true)
-    if [ "$probe_mode" = "host-fallback" ] && [[ "$http_code" =~ ^[1-5][0-9]{2}$ ]]; then
+    if [ "$probe_mode" = "host-fallback" ] && [[ "$http_code" =~ ^[1-4][0-9]{2}$ ]]; then
         echo "✅ Make.com host reachable ($http_code)"
         log_message "INFO" "Make.com host reachable with HTTP $http_code"
         return 0
