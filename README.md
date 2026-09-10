@@ -32,7 +32,7 @@ This project contains configuration, documentation, and helper scripts for a par
 1. Clone this repository
 2. Copy `.env.example` to `.env`
 3. (Optional) Copy `config/environment.template.yml` to `config/environment.yml` for non-secret settings that are not already set in `.env`
-4. Run `./scripts/health-check.sh`
+4. Run `./scripts/health_check.sh`
 5. Follow the setup guide in `docs/setup-guide.md`
 
 ## Run locally
@@ -44,15 +44,15 @@ This project contains configuration, documentation, and helper scripts for a par
    - `cp config/environment.template.yml config/environment.yml`
    - `.env` remains the source of truth for secrets and any values already defined there.
 4. Run the dry-run command first:
-   - `./scripts/health-check.sh`
+   - `./scripts/health_check.sh`
    - This prints the live setup actions it would take and skips the live API calls.
 5. When you are ready to exercise live integrations, run:
    - `./scripts/setup.sh`
 
 ## Dry run
 
-- `./scripts/health-check.sh`
-- Equivalent direct command: `./scripts/setup.sh --dry-run`
+- `./scripts/health_check.sh`
+- Runs `./scripts/setup.sh --dry-run` and validates that the checked-in Make.com scenario JSON files are present and wired to `config.make.webhook_base_url`.
 - The dry run never calls Airtable, eBay, or OpenAI. It only reports what the live setup would do.
 
 ## Error Handling & Troubleshooting
