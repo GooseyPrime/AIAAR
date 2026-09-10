@@ -37,7 +37,6 @@ if not scenario_files:
     print(f"ℹ️ No Make.com scenario definitions found in {scenario_dir}; skipping scenario validation")
     sys.exit(0)
 
-trigger_hooks = []
 registered_webhooks = []
 
 for scenario_file in scenario_files:
@@ -50,44 +49,6 @@ for scenario_file in scenario_files:
     if not isinstance(content, dict):
         print(f"❌ Scenario {scenario_file.name} must contain a JSON object", file=sys.stderr)
         sys.exit(1)
-
-    scenario = content.get("scenario")
-    if scenario is not None:
-        if not isinstance(scenario, dict):
-            print(f"❌ Scenario {scenario_file.name} has a non-object `scenario` section", file=sys.stderr)
-            sys.exit(1)
-
-        modules = scenario.get("modules", [])
-        if modules is None:
-            modules = []
-        if not isinstance(modules, list):
-            print(f"❌ Scenario {scenario_file.name} has a non-list `scenario.modules` section", file=sys.stderr)
-            sys.exit(1)
-
-        for module in modules:
-            if not isinstance(module, dict):
-                print(f"❌ Scenario {scenario_file.name} contains a module entry that is not a JSON object", file=sys.stderr)
-                sys.exit(1)
-
-            if module.get("module") != "gateway:WebhookTrigger":
-                continue
-
-            parameters = module.get("parameters", {})
-            if not isinstance(parameters, dict):
-                print(
-                    f"❌ Scenario {scenario_file.name} has a webhook trigger with non-object parameters",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-
-            hook = parameters.get("hook")
-            if not isinstance(hook, str) or not hook.strip():
-                print(
-                    f"❌ Scenario {scenario_file.name} has a webhook trigger without a hook URL",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-            trigger_hooks.append((scenario_file.name, hook.strip()))
 
     webhooks = content.get("webhooks", [])
     if webhooks is None:
@@ -109,18 +70,16 @@ for scenario_file in scenario_files:
             sys.exit(1)
         registered_webhooks.append((scenario_file.name, url.strip()))
 
-make_urls = trigger_hooks + registered_webhooks
-
-if not make_urls:
+if not registered_webhooks:
     print("ℹ️ No Make.com webhook connectivity definitions were found to validate")
     sys.exit(0)
 
-placeholder_pattern = re.compile(r"\{\{\s*config\.make\.webhook_base_url\s*\}\}")
+placeholder_pattern = re.compile(r"^\{\{\s*config\.make\.webhook_base_url\s*\}\}(?:/.*)?$")
 
 invalid_urls = [
     (name, url)
-    for name, url in make_urls
-    if not placeholder_pattern.search(url)
+    for name, url in registered_webhooks
+    if not placeholder_pattern.match(url)
 ]
 
 if invalid_urls:
@@ -135,8 +94,7 @@ if invalid_urls:
 print(f"✅ Validated {len(scenario_files)} scenario file(s)")
 print(
     "✅ Found "
-    f"{len(trigger_hooks)} webhook trigger(s) and {len(registered_webhooks)} "
-    "registered webhook definition(s) referencing "
+    f"{len(registered_webhooks)} registered webhook definition(s) referencing "
     "config.make.webhook_base_url"
 )
 PY
