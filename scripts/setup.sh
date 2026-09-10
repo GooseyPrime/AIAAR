@@ -124,18 +124,9 @@ load_env_file() {
             exit 1
         fi
 
-        case "$value" in
-            \"*\")
-                value="${value%\"}"
-                value="${value#\"}"
-                ;;
-            \'*\')
-                value="${value%\'}"
-                value="${value#\'}"
-                ;;
-        esac
-
-        export "$key=$value"
+        value="$(strip_wrapping_quotes "$value")"
+        printf -v "$key" '%s' "$value"
+        export "$key"
     done < "$env_file"
 }
 
@@ -242,10 +233,18 @@ yaml_value() {
 
 strip_wrapping_quotes() {
     local value="${1:-}"
-    value="${value%\"}"
-    value="${value#\"}"
-    value="${value%\'}"
-    value="${value#\'}"
+    local first_char
+    local last_char
+
+    if [ "${#value}" -ge 2 ]; then
+        first_char="${value:0:1}"
+        last_char="${value: -1}"
+
+        if { [ "$first_char" = "\"" ] && [ "$last_char" = "\"" ]; } || { [ "$first_char" = "'" ] && [ "$last_char" = "'" ]; }; then
+            value="${value:1:${#value}-2}"
+        fi
+    fi
+
     printf '%s' "$value"
 }
 
@@ -525,10 +524,16 @@ if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
     echo "🧹 Cleaning up test record..."
     log_message "INFO" "Cleaning up test record"
 
-    if ! curl -s -X DELETE \
+    if ! delete_response=$(curl -s -w "\n%{http_code}" -X DELETE \
         -H "$airtable_auth_header" \
-        "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/Target%20Items/$record_id" > /dev/null 2>&1; then
+        "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/Target%20Items/$record_id" 2>/dev/null); then
         log_error "Failed to delete test record"
+        exit 1
+    fi
+
+    delete_http_code=$(response_http_code "$delete_response")
+    if [ "$delete_http_code" -ne 200 ]; then
+        log_error "Failed to delete test record with HTTP $delete_http_code"
         exit 1
     fi
 
