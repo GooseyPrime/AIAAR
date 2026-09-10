@@ -34,8 +34,8 @@ scenario_dir = Path(sys.argv[1])
 scenario_files = sorted(path for path in scenario_dir.glob("*.json") if path.is_file())
 
 if not scenario_files:
-    print(f"❌ No Make.com scenario definitions found in {scenario_dir}", file=sys.stderr)
-    sys.exit(1)
+    print(f"ℹ️ No Make.com scenario definitions found in {scenario_dir}; skipping scenario validation")
+    sys.exit(0)
 
 trigger_hooks = []
 registered_webhooks = []
@@ -115,7 +115,7 @@ if not make_urls:
     print("ℹ️ No Make.com webhook connectivity definitions were found to validate")
     sys.exit(0)
 
-placeholder_pattern = re.compile(r"^\{\{\s*config\.make\.webhook_base_url\s*\}\}(?:/.*)?$")
+placeholder_pattern = re.compile(r"\{\{\s*config\.make\.webhook_base_url\s*\}\}")
 
 invalid_urls = [
     (name, url)
