@@ -4,7 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-ENV_FILE="$REPO_ROOT/.env"
+DEFAULT_ENV_FILE="$REPO_ROOT/.env"
 LOG_DIR="$REPO_ROOT/logs"
 LOG_FILE="$LOG_DIR/monitoring-health-check.log"
 ERROR_LOG="$LOG_DIR/monitoring-health-check_errors.log"
@@ -122,7 +122,7 @@ load_env_file() {
 
 usage() {
     cat <<EOF
-Usage: ./scripts/monitoring-health-check.sh [--dry-run] [--timeout SECONDS]
+Usage: ./scripts/monitoring-health-check.sh [--dry-run] [--env-file PATH] [--timeout SECONDS]
 EOF
 }
 
@@ -160,7 +160,7 @@ check_make_endpoint() {
     local http_code
 
     http_code=$(curl -sS --max-time "$TIMEOUT" -o /dev/null -w "%{http_code}" "$url" || true)
-    if [ "$probe_mode" = "host-fallback" ] && [[ "$http_code" =~ ^[1-5][0-9]{2}$ ]]; then
+    if [ "$probe_mode" = "host-fallback" ] && [[ "$http_code" =~ ^[2-5][0-9]{2}$ ]]; then
         echo "✅ Make.com host reachable ($http_code)"
         log_message "INFO" "Make.com host reachable with HTTP $http_code"
         return 0
@@ -204,11 +204,28 @@ check_airtable_endpoint() {
 }
 
 main() {
+    local env_file_path="${MONITORING_ENV_FILE:-$DEFAULT_ENV_FILE}"
+    local make_url
+    local make_probe_mode
+    local airtable_table
+    local airtable_api_base_url
+    local airtable_table_encoded
+    local airtable_url
+    local airtable_url_preview
+
     while [ "$#" -gt 0 ]; do
         case "$1" in
             --dry-run)
                 DRY_RUN=true
                 shift
+                ;;
+            --env-file)
+                if [ "$#" -lt 2 ]; then
+                    usage
+                    exit 1
+                fi
+                env_file_path="$2"
+                shift 2
                 ;;
             --timeout)
                 if [ "$#" -lt 2 ]; then
@@ -234,8 +251,8 @@ main() {
         esac
     done
 
-    if [ -f "$ENV_FILE" ]; then
-        load_env_file "$ENV_FILE"
+    if [ -f "$env_file_path" ]; then
+        load_env_file "$env_file_path"
     fi
 
     make_url="${MAKE_HEALTHCHECK_URL:-${MAKE_WEBHOOK_BASE_URL:-https://hook.make.com}}"
@@ -262,6 +279,7 @@ main() {
         fi
         echo "Would probe Airtable endpoint: $airtable_url_preview"
         echo "Airtable probe table: $airtable_table"
+        echo "Environment file: $env_file_path"
         echo "Timeout: ${TIMEOUT}s"
         exit 0
     fi

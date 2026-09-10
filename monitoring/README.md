@@ -128,6 +128,12 @@ Then run it live in production with environment values loaded:
 ./scripts/monitoring-health-check.sh
 ```
 
+For schedulers or separate production config files, point the script at an explicit env file:
+
+```bash
+./scripts/monitoring-health-check.sh --env-file /path/to/production.env
+```
+
 What it checks:
 
 - Make.com endpoint reachability using `MAKE_HEALTHCHECK_URL`, or host-level reachability using `MAKE_WEBHOOK_BASE_URL` when no full endpoint probe is configured
@@ -141,7 +147,7 @@ What it does **not** check:
 
 `AIRTABLE_HEALTHCHECK_TABLE` should point to a table that exists in every production environment. If your base does not include `Target Items`, override the value in `.env` before scheduling live checks.
 `AIRTABLE_API_BASE_URL` is optional and defaults to `https://api.airtable.com/v0`.
-`MAKE_WEBHOOK_BASE_URL` is only a host-level fallback probe. It treats any completed HTTP response as proof that the host is reachable, not that a specific scenario path is healthy. Set `MAKE_HEALTHCHECK_URL` if you want the script to validate a specific production Make.com endpoint path.
+`MAKE_WEBHOOK_BASE_URL` is only a host-level fallback probe. It treats any completed 2xx-5xx HTTP response as proof that the host is reachable, not that a specific scenario path is healthy. Set `MAKE_HEALTHCHECK_URL` if you want the script to validate a specific production Make.com endpoint path.
 
 ## Suggested scheduling
 
