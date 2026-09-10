@@ -368,7 +368,7 @@ if [ ! -f "$CONFIG_FILE" ] && [ ! -f "$ENV_FILE" ]; then
         log_error "Failed to copy environment example"
         exit 1
     fi
-    echo "✅ Environment example created at config/environment.yml"
+    echo "✅ Local environment configuration created at config/environment.yml from config/environment.example.yml"
     echo "⚠️  Please add API keys to .env before continuing. Use config/environment.yml only for local non-secret overrides when possible."
     exit 1
 fi
