@@ -165,18 +165,73 @@ assert_no_newlines() {
     esac
 }
 
+fetch_ebay_auth_token() {
+    local basic_auth
+    local token_response
+    local http_code
+    local access_token
+
+    if ! basic_auth=$(printf '%s:%s' "$EBAY_CLIENT_ID" "$EBAY_CLIENT_SECRET" | base64 | tr -d '\n'); then
+        log_error "Failed to encode eBay client credentials"
+        exit 1
+    fi
+
+    if ! token_response=$(curl -s -w "\n%{http_code}" \
+        -X POST \
+        -H "Authorization: Basic $basic_auth" \
+        -H "Content-Type: application/x-www-form-urlencoded" \
+        -d "grant_type=client_credentials&scope=https%3A%2F%2Fapi.ebay.com%2Foauth%2Fapi_scope" \
+        "https://api.ebay.com/identity/v1/oauth2/token" 2>/dev/null); then
+        log_error "Failed to obtain eBay access token"
+        exit 1
+    fi
+
+    http_code=$(echo "$token_response" | tail -n1)
+    if [ "$http_code" -ne 200 ]; then
+        log_error "eBay token request failed with HTTP $http_code"
+        exit 1
+    fi
+
+    access_token=$(echo "$token_response" | head -n -1 | jq -r '.access_token' 2>/dev/null)
+    if [ -z "$access_token" ] || [ "$access_token" = "null" ]; then
+        log_error "Failed to parse eBay access token"
+        exit 1
+    fi
+
+    printf '%s' "$access_token"
+}
+
 yaml_value() {
     local section="$1"
     local key="$2"
     local file="$3"
 
     awk -v section="$section" -v key="$key" '
-        $0 ~ "^[[:space:]]*" section ":[[:space:]]*$" { in_section=1; next }
-        in_section && $0 ~ "^[^[:space:]]" { in_section=0 }
-        in_section && $0 ~ "^[[:space:]]+" key ":[[:space:]]*" {
-            sub("^[[:space:]]+" key ":[[:space:]]*", "", $0)
-            print $0
-            exit
+        {
+            trimmed = $0
+            sub(/^[[:space:]]+/, "", trimmed)
+
+            if (trimmed == section ":") {
+                in_section = 1
+                next
+            }
+
+            if (in_section && $0 ~ "^[^[:space:]]") {
+                in_section = 0
+            }
+
+            if (in_section) {
+                line = $0
+                sub(/^[[:space:]]+/, "", line)
+                prefix = key ":"
+
+                if (index(line, prefix) == 1) {
+                    value = substr(line, length(prefix) + 1)
+                    sub(/^[[:space:]]*/, "", value)
+                    print value
+                    exit
+                }
+            }
         }
     ' "$file"
 }
@@ -287,7 +342,7 @@ if [ ! -f "$CONFIG_FILE" ] && [ ! -f "$ENV_FILE" ]; then
 fi
 
 log_message "INFO" "Verifying required environment variables"
-required_vars=("AIRTABLE_API_KEY" "AIRTABLE_BASE_ID" "EBAY_CLIENT_ID" "EBAY_AUTH_TOKEN" "OPENAI_API_KEY")
+required_vars=("AIRTABLE_API_KEY" "AIRTABLE_BASE_ID" "EBAY_CLIENT_ID" "EBAY_CLIENT_SECRET" "OPENAI_API_KEY")
 for var in "${required_vars[@]}"; do
     if [ -z "${!var:-}" ]; then
         log_error "Required environment variable $var is not set"
@@ -302,8 +357,16 @@ echo "✅ Configuration validated"
 log_message "INFO" "All required environment variables validated"
 
 assert_no_newlines AIRTABLE_API_KEY
+assert_no_newlines EBAY_CLIENT_ID
+assert_no_newlines EBAY_CLIENT_SECRET
 assert_no_newlines EBAY_AUTH_TOKEN
 assert_no_newlines OPENAI_API_KEY
+
+if [ -z "${EBAY_AUTH_TOKEN:-}" ]; then
+    log_message "INFO" "Requesting eBay access token from client credentials"
+    EBAY_AUTH_TOKEN="$(fetch_ebay_auth_token)"
+    export EBAY_AUTH_TOKEN
+fi
 
 printf -v airtable_auth_header '%s: %s %s' Authorization Bearer "$AIRTABLE_API_KEY"
 printf -v ebay_auth_header '%s: %s %s' Authorization Bearer "$EBAY_AUTH_TOKEN"
@@ -395,7 +458,9 @@ fi
 echo "📊 Creating test data in Airtable..."
 log_message "INFO" "Creating test data in Airtable"
 
-test_item_id="TEST-ITEM-$(date +%s%N)-$$"
+test_item_id_file="$(mktemp "${TMPDIR:-/tmp}/aiaar-setup.XXXXXX")"
+test_item_id="TEST-ITEM-$(basename "$test_item_id_file")"
+rm -f "$test_item_id_file"
 
 test_item_data='{
     "fields": {
