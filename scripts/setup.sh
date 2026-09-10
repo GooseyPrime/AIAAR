@@ -117,8 +117,13 @@ load_env_file() {
 
         value="${line#*=}"
         key="$(trim_whitespace "$key")"
+        key="$(trim_whitespace "$key")"
         value="$(trim_whitespace "${value:-}")"
         value="$(strip_inline_comment "$value")"
+        if ! [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+            log_error "Invalid environment variable name in $env_file: $key"
+            exit 1
+        fi
 
         case "$value" in
             \"*\")
@@ -137,6 +142,15 @@ load_env_file() {
 
         export "$key=$value"
     done < "$env_file"
+}
+
+set_if_unset() {
+    local var_name="$1"
+    local value="$2"
+
+    if [ -z "${!var_name+x}" ]; then
+        printf -v "$var_name" '%s' "$value"
+    fi
 }
 
 yaml_value() {
@@ -169,13 +183,13 @@ populate_from_config() {
         return
     fi
 
-    AIRTABLE_API_KEY="${AIRTABLE_API_KEY:-$(strip_wrapping_quotes "$(yaml_value airtable api_key "$CONFIG_FILE")")}"
-    AIRTABLE_BASE_ID="${AIRTABLE_BASE_ID:-$(strip_wrapping_quotes "$(yaml_value airtable base_id "$CONFIG_FILE")")}"
-    EBAY_CLIENT_ID="${EBAY_CLIENT_ID:-$(strip_wrapping_quotes "$(yaml_value ebay client_id "$CONFIG_FILE")")}"
-    EBAY_CLIENT_SECRET="${EBAY_CLIENT_SECRET:-$(strip_wrapping_quotes "$(yaml_value ebay client_secret "$CONFIG_FILE")")}"
-    EBAY_AUTH_TOKEN="${EBAY_AUTH_TOKEN:-$(strip_wrapping_quotes "$(yaml_value ebay auth_token "$CONFIG_FILE")")}"
-    OPENAI_API_KEY="${OPENAI_API_KEY:-$(strip_wrapping_quotes "$(yaml_value openai api_key "$CONFIG_FILE")")}"
-    MAKE_WEBHOOK_BASE_URL="${MAKE_WEBHOOK_BASE_URL:-$(strip_wrapping_quotes "$(yaml_value make webhook_base_url "$CONFIG_FILE")")}"
+    set_if_unset AIRTABLE_API_KEY "$(strip_wrapping_quotes "$(yaml_value airtable api_key "$CONFIG_FILE")")"
+    set_if_unset AIRTABLE_BASE_ID "$(strip_wrapping_quotes "$(yaml_value airtable base_id "$CONFIG_FILE")")"
+    set_if_unset EBAY_CLIENT_ID "$(strip_wrapping_quotes "$(yaml_value ebay client_id "$CONFIG_FILE")")"
+    set_if_unset EBAY_CLIENT_SECRET "$(strip_wrapping_quotes "$(yaml_value ebay client_secret "$CONFIG_FILE")")"
+    set_if_unset EBAY_AUTH_TOKEN "$(strip_wrapping_quotes "$(yaml_value ebay auth_token "$CONFIG_FILE")")"
+    set_if_unset OPENAI_API_KEY "$(strip_wrapping_quotes "$(yaml_value openai api_key "$CONFIG_FILE")")"
+    set_if_unset MAKE_WEBHOOK_BASE_URL "$(strip_wrapping_quotes "$(yaml_value make webhook_base_url "$CONFIG_FILE")")"
 
     export AIRTABLE_API_KEY AIRTABLE_BASE_ID EBAY_CLIENT_ID EBAY_CLIENT_SECRET EBAY_AUTH_TOKEN OPENAI_API_KEY MAKE_WEBHOOK_BASE_URL
 }
@@ -341,9 +355,7 @@ log_message "INFO" "Testing OpenAI API connection"
 
 if ! openai_response=$(curl -s -w "\n%{http_code}" \
     -H "$openai_auth_header" \
-    -H "Content-Type: application/json" \
-    -d '{"model":"gpt-4","messages":[{"role":"user","content":"Hello"}],"max_tokens":5}' \
-    "https://api.openai.com/v1/chat/completions" 2>/dev/null); then
+    "https://api.openai.com/v1/models" 2>/dev/null); then
     log_error "curl command failed for OpenAI API test"
     exit 1
 fi
