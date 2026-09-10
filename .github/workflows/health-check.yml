@@ -1,0 +1,20 @@
+name: Health Check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run deployment readiness health check
+        run: bash ./scripts/health_check.sh

@@ -32,7 +32,7 @@ This project contains configuration, documentation, and helper scripts for a par
 1. Clone this repository
 2. Copy `.env.example` to `.env` and add your real API keys there
 3. (Optional) Copy `config/environment.example.yml` to `config/environment.yml` for non-secret local settings that are not already set in `.env`
-4. Run `./scripts/health-check.sh`
+4. Run `./scripts/health_check.sh`
 5. Follow the setup guide in `docs/setup-guide.md`
 
 ## Run locally
@@ -45,15 +45,15 @@ This project contains configuration, documentation, and helper scripts for a par
    - `.env` remains the source of truth for secrets and any values already defined there.
    - `config/environment.yml` is ignored by Git so you can keep workstation-specific overrides out of version control.
 4. Run the dry-run command first:
-   - `./scripts/health-check.sh`
+   - `./scripts/health_check.sh`
    - This prints the live setup actions it would take and skips the live API calls.
 5. When you are ready to exercise live integrations, run:
    - `./scripts/setup.sh`
 
 ## Dry run
 
-- `./scripts/health-check.sh`
-- Equivalent direct command: `./scripts/setup.sh --dry-run`
+- `./scripts/health_check.sh`
+- Runs `./scripts/setup.sh --dry-run`, then validates that the checked-in Make.com scenario JSON files are present and wired to `config.make.webhook_base_url`.
 - The dry run never calls Airtable, eBay, or OpenAI. It only reports what the live setup would do.
 
 ## Error Handling & Troubleshooting
@@ -72,6 +72,7 @@ This project implements robust error handling across all automation scripts and 
 - [API Configuration](docs/api-configuration.md)
 - [Make.com Scenarios](docs/scenarios-guide.md)
 - [Database Schema](docs/database-schema.md)
+- [Security Guide](SECURITY.md)
 - **[Troubleshooting Guide](docs/troubleshooting.md)** ⭐ Start here for error resolution
 
 ## License

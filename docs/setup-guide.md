@@ -157,7 +157,7 @@ Enable error handling for each scenario:
 Run the local dry-run command before attempting any live API checks:
 
 ```bash
-./scripts/health-check.sh
+./scripts/health_check.sh
 ```
 
 This command skips the live Airtable, eBay, and OpenAI API calls so you can validate the local script wiring first.

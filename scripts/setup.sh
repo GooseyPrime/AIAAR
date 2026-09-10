@@ -130,27 +130,11 @@ load_env_file() {
     done < "$env_file"
 }
 
-initialize_optional_config_file() {
-    if [ -f "$CONFIG_FILE" ]; then
-        return 0
-    fi
-
-    if [ -f "$CONFIG_TEMPLATE" ]; then
-        if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
-            log_error "Failed to copy environment example"
-            exit 1
-        fi
-        initialized_config=true
-    else
-        log_message "WARN" "Optional config example not found, skipping config/environment.yml initialization"
-    fi
-}
-
 set_if_unset() {
     local var_name="$1"
     local value="$2"
 
-    if [ -z "${!var_name:-}" ]; then
+    if [ -z "${!var_name:-}" ] || is_placeholder_value "${!var_name}"; then
         declare -gx "$var_name=$value"
     fi
 }
@@ -326,6 +310,8 @@ print_dry_run() {
     else
         echo "No credentials found. Copy .env.example to .env for API keys and, if needed, config/environment.example.yml to config/environment.yml for local non-secret overrides."
     fi
+
+    return 0
 }
 
 for arg in "$@"; do
@@ -345,6 +331,8 @@ echo "🚀 AIAAR Setup Script"
 echo "===================="
 log_message "INFO" "AIAAR Setup Script started"
 
+config_loaded=false
+
 if [ -f "$ENV_FILE" ]; then
     echo "📖 Loading .env"
     log_message "INFO" "Loading configuration from .env"
@@ -355,6 +343,7 @@ if [ -f "$CONFIG_FILE" ]; then
     echo "📖 Reading configuration from config/environment.yml"
     log_message "INFO" "Reading configuration from config/environment.yml"
     populate_from_config
+    config_loaded=true
 fi
 
 if [ "$DRY_RUN" = true ]; then
@@ -393,35 +382,51 @@ if [ ! -f "$ENV_FILE" ]; then
         exit 1
     fi
     initialized_env=true
-    initialize_optional_config_file
 fi
 
-if [ "$initialized_env" != true ] && [ ! -f "$CONFIG_FILE" ]; then
-    initialize_optional_config_file
+if [ ! -f "$CONFIG_FILE" ]; then
+    if [ ! -f "$CONFIG_TEMPLATE" ]; then
+        log_error "Missing required example file: $CONFIG_TEMPLATE"
+        echo "❌ Missing required example file: config/environment.example.yml" >&2
+        exit 1
+    fi
+    if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
+        log_error "Failed to copy environment example"
+        exit 1
+    fi
+    initialized_config=true
 fi
 
 if [ "$initialized_env" = true ]; then
-    log_message "WARN" "Initialized missing local configuration files from examples"
-    echo "✅ Local environment files created:"
-    echo "   - .env from .env.example"
-    [ "$initialized_config" = true ] && echo "   - config/environment.yml from config/environment.example.yml"
-    if [ "$initialized_config" = true ]; then
-        echo "⚠️  Review .env for real API keys and config/environment.yml for local overrides before rerunning live setup."
-    else
-        echo "⚠️  Review and replace placeholder API keys in .env before rerunning live setup."
+    load_env_file "$ENV_FILE"
+    if [ -f "$CONFIG_FILE" ]; then
+        populate_from_config
+        config_loaded=true
     fi
-    exit 1
-elif [ "$initialized_config" = true ]; then
+elif [ "$config_loaded" != true ] && [ -f "$CONFIG_FILE" ]; then
+    populate_from_config
+    config_loaded=true
+fi
+
+if [ "$initialized_env" = true ] || [ "$initialized_config" = true ]; then
     log_message "WARN" "Initialized missing local configuration files from examples"
     echo "✅ Local environment files created:"
-    echo "   - config/environment.yml from config/environment.example.yml"
-    echo "ℹ️  Continuing with values already loaded from .env for this run. Review config/environment.yml before your next run if you want local overrides."
+    [ "$initialized_env" = true ] && echo "   - .env from .env.example"
+    [ "$initialized_config" = true ] && echo "   - config/environment.yml from config/environment.example.yml"
+    if [ "$initialized_env" = true ] && [ "$initialized_config" = true ]; then
+        echo "⚠️  Review .env for real API keys and config/environment.yml for local overrides before rerunning live setup."
+        exit 1
+    elif [ "$initialized_env" = true ]; then
+        echo "ℹ️  Continuing with values already loaded from config/environment.yml for this run."
+    elif [ "$initialized_config" = true ]; then
+        echo "ℹ️  Continuing with values already loaded from .env for this run."
+    fi
 fi
 
 log_message "INFO" "Verifying required environment variables"
 required_vars=("AIRTABLE_API_KEY" "AIRTABLE_BASE_ID" "OPENAI_API_KEY")
 for var in "${required_vars[@]}"; do
-    if [ -z "${!var:-}" ] || is_placeholder_value "${!var}"; then
+    if [ "$DRY_RUN" != true ] && { [ -z "${!var:-}" ] || is_placeholder_value "${!var:-}"; }; then
         log_error "Required environment variable $var is not set to a real value"
         echo "❌ Required environment variable $var is not set to a real value"
         echo "Please update .env with your API keys, or config/environment.yml if you intentionally keep local credentials there"
