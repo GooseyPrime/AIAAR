@@ -392,6 +392,13 @@ if [ ! -f "$CONFIG_FILE" ]; then
     initialized_config=true
 fi
 
+if [ "$initialized_env" = true ]; then
+    load_env_file "$ENV_FILE"
+    if [ -f "$CONFIG_FILE" ]; then
+        populate_from_config
+    fi
+fi
+
 if [ "$initialized_env" = true ] || [ "$initialized_config" = true ]; then
     log_message "WARN" "Initialized missing local configuration files from examples"
     echo "✅ Local environment files created:"
