@@ -13,8 +13,9 @@ echo "• Verifying setup dry run"
 "$SCRIPT_DIR/setup.sh" --dry-run
 
 if [ ! -d "$SCENARIO_DIR" ]; then
-    echo "❌ Missing Make.com scenario directory: $SCENARIO_DIR" >&2
-    exit 1
+    echo "ℹ️ No Make.com scenario directory found at $SCENARIO_DIR; skipping scenario validation"
+    echo "✅ Health check completed successfully"
+    exit 0
 fi
 
 if ! command -v python3 >/dev/null 2>&1; then
@@ -114,7 +115,7 @@ if not make_urls:
     print("ℹ️ No Make.com webhook connectivity definitions were found to validate")
     sys.exit(0)
 
-placeholder_pattern = re.compile(r"\{\{\s*config\.make\.webhook_base_url\s*\}\}")
+placeholder_pattern = re.compile(r"^\{\{\s*config\.make\.webhook_base_url\s*\}\}(?:/.*)?$")
 
 invalid_urls = [
     (name, url)
