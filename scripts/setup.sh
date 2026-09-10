@@ -397,7 +397,9 @@ if [ "$initialized_env" = true ] || [ "$initialized_config" = true ]; then
     echo "✅ Local environment files created:"
     [ "$initialized_env" = true ] && echo "   - .env from .env.example"
     [ "$initialized_config" = true ] && echo "   - config/environment.yml from config/environment.example.yml"
-    if [ "$initialized_env" = true ]; then
+    if [ "$initialized_env" = true ] && [ "$initialized_config" = true ]; then
+        echo "⚠️  Review .env for real API keys and config/environment.yml for local overrides before rerunning live setup."
+    elif [ "$initialized_env" = true ]; then
         echo "⚠️  Review and replace placeholder API keys in .env before rerunning live setup."
     else
         echo "⚠️  Review config/environment.yml before rerunning live setup."
