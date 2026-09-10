@@ -62,20 +62,79 @@ error_handler() {
 
 trap 'error_handler ${LINENO} $? "$BASH_COMMAND"' ERR
 
+trim_whitespace() {
+    local value="${1:-}"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    printf '%s' "$value"
+}
+
+strip_inline_comment() {
+    local value="${1:-}"
+    local output=""
+    local quote=""
+    local char
+    local previous_char=""
+    local i
+
+    for ((i=0; i<${#value}; i++)); do
+        char="${value:i:1}"
+
+        if [ -z "$quote" ]; then
+            if [ "$char" = "#" ] && { [ "$i" -eq 0 ] || [[ "$previous_char" =~ [[:space:]] ]]; }; then
+                break
+            fi
+
+            if [ "$char" = "\"" ] || [ "$char" = "'" ]; then
+                quote="$char"
+            fi
+        elif [ "$char" = "$quote" ]; then
+            quote=""
+        fi
+
+        output+="$char"
+        previous_char="$char"
+    done
+
+    trim_whitespace "$output"
+}
+
 load_env_file() {
     local env_file="$1"
+    local line
+    local key
+    local value
 
-    while IFS='=' read -r key value; do
-        if [ -z "${key// }" ] || [[ "$key" =~ ^[[:space:]]*# ]]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+        if [ -z "${line// }" ] || [[ "$line" =~ ^[[:space:]]*# ]]; then
             continue
         fi
 
-        key="$(echo "$key" | xargs)"
-        value="$(echo "${value:-}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
-        value="${value%\"}"
-        value="${value#\"}"
-        value="${value%\'}"
-        value="${value#\'}"
+        key="${line%%=*}"
+        if [ "$key" = "$line" ]; then
+            continue
+        fi
+
+        value="${line#*=}"
+        key="$(trim_whitespace "$key")"
+        value="$(trim_whitespace "${value:-}")"
+        value="$(strip_inline_comment "$value")"
+
+        case "$value" in
+            \"*\")
+                value="${value%\"}"
+                value="${value#\"}"
+                ;;
+            \'*\')
+                value="${value%\'}"
+                value="${value#\'}"
+                ;;
+            *)
+                value="${value%%[[:space:]]#*}"
+                value="$(echo "$value" | sed 's/[[:space:]]*$//')"
+                ;;
+        esac
+
         export "$key=$value"
     done < "$env_file"
 }
@@ -216,11 +275,9 @@ done
 echo "✅ Configuration validated"
 log_message "INFO" "All required environment variables validated"
 
-auth_header_name="Auth""orization"
-bearer_prefix="Bear""er"
-airtable_auth_header="${auth_header_name}: ${bearer_prefix} ${AIRTABLE_API_KEY}"
-ebay_auth_header="${auth_header_name}: ${bearer_prefix} ${EBAY_AUTH_TOKEN}"
-openai_auth_header="${auth_header_name}: ${bearer_prefix} ${OPENAI_API_KEY}"
+printf -v airtable_auth_header '%s: %s %s' Authorization Bearer "$AIRTABLE_API_KEY"
+printf -v ebay_auth_header '%s: %s %s' Authorization Bearer "$EBAY_AUTH_TOKEN"
+printf -v openai_auth_header '%s: %s %s' Authorization Bearer "$OPENAI_API_KEY"
 
 echo "🔗 Testing Airtable connection..."
 log_message "INFO" "Testing Airtable API connection"

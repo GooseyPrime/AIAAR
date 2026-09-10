@@ -54,8 +54,9 @@ Before setting up the Automated Auction Assistant, ensure you have:
 ## Step 2: Environment Configuration
 
 1. Copy `.env.example` to `.env`
-2. Copy `config/environment.template.yml` to `config/environment.yml` if you want to override non-secret defaults
+2. Copy `config/environment.template.yml` to `config/environment.yml` if you want to add non-secret defaults that are not already set in `.env`
 3. Fill in API keys in `.env` and any optional configuration values in `config/environment.yml`:
+   - `.env` remains the source of truth for secrets and any values already defined there.
 
 ```yaml
 # eBay Configuration
