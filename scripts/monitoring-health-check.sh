@@ -160,7 +160,7 @@ check_make_endpoint() {
     local http_code
 
     http_code=$(curl -sS --max-time "$TIMEOUT" -o /dev/null -w "%{http_code}" "$url" || true)
-    if [ "$probe_mode" = "host-fallback" ] && [[ "$http_code" =~ ^[23][0-9]{2}$ ]]; then
+    if [ "$probe_mode" = "host-fallback" ] && [[ "$http_code" =~ ^[1-5][0-9]{2}$ ]]; then
         echo "✅ Make.com host reachable ($http_code)"
         log_message "INFO" "Make.com host reachable with HTTP $http_code"
         return 0

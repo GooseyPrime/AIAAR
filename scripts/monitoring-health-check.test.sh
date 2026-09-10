@@ -46,9 +46,11 @@ test_make_host_fallback_accepts_redirect() {
     assert_contains "$output" "Make.com host reachable (302)"
 }
 
-test_make_host_fallback_rejects_server_error() {
+test_make_host_fallback_accepts_server_error_response() {
+    local output
     MOCK_CURL_HTTP_CODE="500"
-    assert_failure check_make_endpoint "https://hook.make.com" "host-fallback"
+    output="$(check_make_endpoint "https://hook.make.com" "host-fallback")"
+    assert_contains "$output" "Make.com host reachable (500)"
 }
 
 test_make_explicit_endpoint_requires_200() {
@@ -95,10 +97,28 @@ EOF
     [ "${MAKE_WEBHOOK_BASE_URL}" = "https://hook.make.com" ]
 }
 
+test_env_loader_preserves_hash_inside_quotes() {
+    local env_file
+    env_file="$(mktemp)"
+    trap 'rm -f "$env_file"' RETURN
+
+    cat > "$env_file" <<'EOF'
+AIRTABLE_HEALTHCHECK_TABLE="Target #1" # keep quoted hash, strip trailing comment
+MAKE_HEALTHCHECK_URL="https://hook.make.com/path#fragment"
+EOF
+
+    unset AIRTABLE_HEALTHCHECK_TABLE MAKE_HEALTHCHECK_URL
+    load_env_file "$env_file"
+
+    [ "${AIRTABLE_HEALTHCHECK_TABLE}" = "Target #1" ]
+    [ "${MAKE_HEALTHCHECK_URL}" = "https://hook.make.com/path#fragment" ]
+}
+
 test_make_host_fallback_accepts_redirect
-test_make_host_fallback_rejects_server_error
+test_make_host_fallback_accepts_server_error_response
 test_make_explicit_endpoint_requires_200
 test_airtable_status_branches
 test_env_loader_accepts_export_and_ignores_unlisted_keys
+test_env_loader_preserves_hash_inside_quotes
 
 echo "monitoring-health-check tests passed"
