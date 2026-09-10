@@ -134,7 +134,7 @@ set_if_unset() {
     local var_name="$1"
     local value="$2"
 
-    if [ -z "${!var_name:-}" ]; then
+    if [ -z "${!var_name:-}" ] || is_placeholder_value "${!var_name}"; then
         declare -gx "$var_name=$value"
     fi
 }
@@ -362,22 +362,34 @@ fi
 
 log_message "INFO" "All required dependencies found"
 
-if [ ! -f "$CONFIG_FILE" ] && [ ! -f "$ENV_FILE" ]; then
-    log_message "WARN" "Configuration files not found, creating example configuration"
+initialized_env=false
+initialized_config=false
+
+if [ ! -f "$ENV_FILE" ]; then
     echo "📝 Creating environment configuration..."
     if ! cp "$ENV_TEMPLATE" "$ENV_FILE"; then
         log_error "Failed to copy .env example"
         exit 1
     fi
+    initialized_env=true
+fi
+
+if [ ! -f "$CONFIG_FILE" ]; then
     if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
         log_error "Failed to copy environment example"
         exit 1
     fi
+    initialized_config=true
+fi
+
+if [ "$initialized_env" = true ] || [ "$initialized_config" = true ]; then
+    log_message "WARN" "Initialized missing local configuration files from examples"
     echo "✅ Local environment files created:"
-    echo "   - .env from .env.example"
-    echo "   - config/environment.yml from config/environment.example.yml"
-    echo "⚠️  Please add API keys to .env before continuing. Use config/environment.yml only for local non-secret overrides when possible."
-    exit 1
+    [ "$initialized_env" = true ] && echo "   - .env from .env.example"
+    [ "$initialized_config" = true ] && echo "   - config/environment.yml from config/environment.example.yml"
+    if [ "$initialized_env" = true ]; then
+        echo "⚠️  Review and replace placeholder API keys in .env before relying on live setup."
+    fi
 fi
 
 log_message "INFO" "Verifying required environment variables"
