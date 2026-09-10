@@ -398,8 +398,11 @@ if [ "$initialized_env" = true ] || [ "$initialized_config" = true ]; then
     [ "$initialized_env" = true ] && echo "   - .env from .env.example"
     [ "$initialized_config" = true ] && echo "   - config/environment.yml from config/environment.example.yml"
     if [ "$initialized_env" = true ]; then
-        echo "⚠️  Review and replace placeholder API keys in .env before relying on live setup."
+        echo "⚠️  Review and replace placeholder API keys in .env before rerunning live setup."
+    else
+        echo "⚠️  Review config/environment.yml before rerunning live setup."
     fi
+    exit 1
 fi
 
 log_message "INFO" "Verifying required environment variables"
