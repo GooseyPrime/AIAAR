@@ -498,9 +498,7 @@ fi
 echo "📊 Creating test data in Airtable..."
 log_message "INFO" "Creating test data in Airtable"
 
-test_item_id_file="$(mktemp "${TMPDIR:-/tmp}/aiaar-setup.XXXXXX")"
-test_item_id="TEST-ITEM-$(basename "$test_item_id_file")"
-rm -f "$test_item_id_file"
+test_item_id="TEST-ITEM-$(date +%s)-$$-${RANDOM}${RANDOM}"
 
 test_item_data='{
     "fields": {
