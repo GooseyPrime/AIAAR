@@ -401,7 +401,7 @@ assert_no_newlines EBAY_CLIENT_SECRET
 assert_no_newlines EBAY_AUTH_TOKEN
 assert_no_newlines OPENAI_API_KEY
 
-if [ -z "${EBAY_AUTH_TOKEN:-}" ]; then
+if [ -z "${EBAY_AUTH_TOKEN:-}" ] || is_placeholder_value "$EBAY_AUTH_TOKEN"; then
     log_message "INFO" "Requesting eBay access token from client credentials"
     EBAY_AUTH_TOKEN="$(fetch_ebay_auth_token)"
     export EBAY_AUTH_TOKEN

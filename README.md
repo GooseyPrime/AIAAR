@@ -45,7 +45,7 @@ This project contains configuration, documentation, and helper scripts for a par
    - `.env` remains the source of truth for secrets and any values already defined there.
 4. Run the dry-run command first:
    - `./scripts/health-check.sh`
-   - This prints the live setup actions it would take and exits with status `0` even when credentials are missing.
+   - This prints the live setup actions it would take and skips the live API calls.
 5. When you are ready to exercise live integrations, run:
    - `./scripts/setup.sh`
 

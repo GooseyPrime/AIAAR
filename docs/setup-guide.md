@@ -163,7 +163,7 @@ Run the local dry-run command before attempting any live API checks:
 ./scripts/health-check.sh
 ```
 
-This command exits successfully without calling Airtable, eBay, or OpenAI when credentials are missing.
+This command skips the live Airtable, eBay, and OpenAI API calls so you can validate the local script wiring first.
 
 ### 6.1 Sandbox Testing
 
