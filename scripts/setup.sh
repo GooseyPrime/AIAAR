@@ -147,7 +147,7 @@ set_if_unset() {
     local var_name="$1"
     local value="$2"
 
-    if [ -z "${!var_name+x}" ]; then
+    if [ -z "${!var_name:-}" ]; then
         printf -v "$var_name" '%s' "$value"
         export "$var_name"
     fi
@@ -163,6 +163,14 @@ assert_no_newlines() {
             exit 1
             ;;
     esac
+}
+
+response_body() {
+    printf '%s\n' "$1" | sed '$d'
+}
+
+response_http_code() {
+    printf '%s\n' "$1" | sed -n '$p'
 }
 
 fetch_ebay_auth_token() {
@@ -186,13 +194,13 @@ fetch_ebay_auth_token() {
         exit 1
     fi
 
-    http_code=$(echo "$token_response" | tail -n1)
+    http_code=$(response_http_code "$token_response")
     if [ "$http_code" -ne 200 ]; then
         log_error "eBay token request failed with HTTP $http_code"
         exit 1
     fi
 
-    access_token=$(echo "$token_response" | head -n -1 | jq -r '.access_token' 2>/dev/null)
+    access_token=$(response_body "$token_response" | jq -r '.access_token' 2>/dev/null)
     if [ -z "$access_token" ] || [ "$access_token" = "null" ]; then
         log_error "Failed to parse eBay access token"
         exit 1
@@ -382,7 +390,7 @@ if ! airtable_response=$(curl -s -w "\n%{http_code}" \
     exit 1
 fi
 
-http_code=$(echo "$airtable_response" | tail -n1)
+http_code=$(response_http_code "$airtable_response")
 log_message "INFO" "Airtable API responded with HTTP code: $http_code"
 
 if [ "$http_code" -eq 200 ]; then
@@ -413,7 +421,7 @@ if ! ebay_response=$(curl -s -w "\n%{http_code}" \
     exit 1
 fi
 
-http_code=$(echo "$ebay_response" | tail -n1)
+http_code=$(response_http_code "$ebay_response")
 log_message "INFO" "eBay API responded with HTTP code: $http_code"
 
 if [ "$http_code" -eq 200 ]; then
@@ -439,7 +447,7 @@ if ! openai_response=$(curl -s -w "\n%{http_code}" \
     exit 1
 fi
 
-http_code=$(echo "$openai_response" | tail -n1)
+http_code=$(response_http_code "$openai_response")
 log_message "INFO" "OpenAI API responded with HTTP code: $http_code"
 
 if [ "$http_code" -eq 200 ]; then
@@ -487,14 +495,14 @@ if ! test_response=$(curl -s -w "\n%{http_code}" \
     exit 1
 fi
 
-http_code=$(echo "$test_response" | tail -n1)
+http_code=$(response_http_code "$test_response")
 log_message "INFO" "Test record creation responded with HTTP code: $http_code"
 
 if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
     echo "✅ Test record created successfully"
     log_message "INFO" "Test record created successfully"
 
-    if ! record_id=$(echo "$test_response" | head -n -1 | jq -r '.id' 2>/dev/null); then
+    if ! record_id=$(response_body "$test_response" | jq -r '.id' 2>/dev/null); then
         log_error "Failed to parse record ID from response"
         exit 1
     fi
