@@ -130,7 +130,7 @@ Then run it live in production with environment values loaded:
 
 What it checks:
 
-- Make.com endpoint reachability using `MAKE_WEBHOOK_BASE_URL` (defaults to `https://hook.make.com`)
+- Make.com endpoint reachability using `MAKE_HEALTHCHECK_URL`, or host-level reachability using `MAKE_WEBHOOK_BASE_URL` when no full endpoint probe is configured
 - Airtable table-read success against a designated existing table using `AIRTABLE_API_KEY`, `AIRTABLE_BASE_ID`, and `AIRTABLE_HEALTHCHECK_TABLE` (defaults to `Target Items`), which also surfaces auth/permission problems separately from missing-table problems
 
 What it does **not** check:
@@ -140,6 +140,7 @@ What it does **not** check:
 - end-to-end order/bid lifecycle completion
 
 `AIRTABLE_HEALTHCHECK_TABLE` should point to a table that exists in every production environment. If your base does not include `Target Items`, override the value in `.env` before scheduling live checks.
+`MAKE_WEBHOOK_BASE_URL` is only a host-level fallback probe. Set `MAKE_HEALTHCHECK_URL` if you want the script to validate a specific production Make.com endpoint path.
 
 ## Suggested scheduling
 

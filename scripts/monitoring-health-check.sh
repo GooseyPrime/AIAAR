@@ -104,6 +104,12 @@ load_env_file() {
         value="$(trim_whitespace "${value:-}")"
         value="$(strip_inline_comment "$value")"
         value="$(strip_wrapping_quotes "$value")"
+
+        if ! [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+            log_error "Invalid environment variable name in $env_file: $key"
+            exit 1
+        fi
+
         declare -gx "$key=$value"
     done < "$env_file"
 }
@@ -163,6 +169,7 @@ check_make_endpoint() {
 
 check_airtable_endpoint() {
     local url="$1"
+    local table_name="$2"
     local http_code
     local auth_header_name="Authorization"
     local auth_header_value="Bearer ${AIRTABLE_API_KEY}"
@@ -178,9 +185,9 @@ check_airtable_endpoint() {
     fi
 
     if [ "$http_code" = "401" ] || [ "$http_code" = "403" ]; then
-        log_error "Airtable auth or permission check failed for the configured probe table ($airtable_table) with HTTP $http_code"
+        log_error "Airtable auth or permission check failed for the configured probe table ($table_name) with HTTP $http_code"
     elif [ "$http_code" = "404" ] || [ "$http_code" = "422" ]; then
-        log_error "Airtable API check failed for the configured probe table ($airtable_table) with HTTP $http_code"
+        log_error "Airtable API check failed for the configured probe table ($table_name) with HTTP $http_code"
     else
         log_error "Airtable API check failed for $url with HTTP ${http_code:-000}"
     fi
@@ -217,7 +224,7 @@ if [ -f "$ENV_FILE" ]; then
     load_env_file "$ENV_FILE"
 fi
 
-make_url="${MAKE_WEBHOOK_BASE_URL:-https://hook.make.com}"
+make_url="${MAKE_HEALTHCHECK_URL:-${MAKE_WEBHOOK_BASE_URL:-https://hook.make.com}}"
 airtable_table="${AIRTABLE_HEALTHCHECK_TABLE:-Target Items}"
 airtable_table_encoded="$(url_encode "$airtable_table")"
 airtable_url="https://api.airtable.com/v0/${AIRTABLE_BASE_ID:-YOUR_AIRTABLE_BASE_ID}/${airtable_table_encoded}?maxRecords=1"
@@ -229,6 +236,11 @@ echo "=========================================="
 if [ "$DRY_RUN" = true ]; then
     echo "🧪 Dry run only - no live API calls will be made."
     echo "Would probe Make.com endpoint: $make_url"
+    if [ -z "${MAKE_HEALTHCHECK_URL:-}" ]; then
+        echo "Make.com probe mode: host-level fallback via MAKE_WEBHOOK_BASE_URL"
+    else
+        echo "Make.com probe mode: explicit endpoint via MAKE_HEALTHCHECK_URL"
+    fi
     echo "Would probe Airtable endpoint: $airtable_url_preview"
     echo "Airtable probe table: $airtable_table"
     echo "Timeout: ${TIMEOUT}s"
@@ -249,5 +261,5 @@ fi
 
 log_message "INFO" "Starting monitoring health check"
 check_make_endpoint "$make_url"
-check_airtable_endpoint "$airtable_url"
+check_airtable_endpoint "$airtable_url" "$airtable_table"
 log_message "INFO" "Monitoring health check completed successfully"
