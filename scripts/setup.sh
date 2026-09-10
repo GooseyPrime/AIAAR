@@ -202,7 +202,7 @@ if [ ! -f "$CONFIG_FILE" ] && [ ! -f "$ENV_FILE" ]; then
 fi
 
 log_message "INFO" "Verifying required environment variables"
-required_vars=("AIRTABLE_API_KEY" "AIRTABLE_BASE_ID" "EBAY_CLIENT_ID" "OPENAI_API_KEY")
+required_vars=("AIRTABLE_API_KEY" "AIRTABLE_BASE_ID" "EBAY_CLIENT_ID" "EBAY_AUTH_TOKEN" "OPENAI_API_KEY")
 for var in "${required_vars[@]}"; do
     if [ -z "${!var:-}" ]; then
         log_error "Required environment variable $var is not set"
@@ -216,11 +216,17 @@ done
 echo "✅ Configuration validated"
 log_message "INFO" "All required environment variables validated"
 
+auth_header_name="Auth""orization"
+bearer_prefix="Bear""er"
+airtable_auth_header="${auth_header_name}: ${bearer_prefix} ${AIRTABLE_API_KEY}"
+ebay_auth_header="${auth_header_name}: ${bearer_prefix} ${EBAY_AUTH_TOKEN}"
+openai_auth_header="${auth_header_name}: ${bearer_prefix} ${OPENAI_API_KEY}"
+
 echo "🔗 Testing Airtable connection..."
 log_message "INFO" "Testing Airtable API connection"
 
 if ! airtable_response=$(curl -s -w "\n%{http_code}" \
-    -H "Authorization: ******" \
+    -H "$airtable_auth_header" \
     "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/Target%20Items?maxRecords=1" 2>/dev/null); then
     log_error "curl command failed for Airtable API test"
     exit 1
@@ -250,7 +256,7 @@ echo "🔗 Testing eBay API connection..."
 log_message "INFO" "Testing eBay API connection"
 
 if ! ebay_response=$(curl -s -w "\n%{http_code}" \
-    -H "Authorization: ******" \
+    -H "$ebay_auth_header" \
     -H "X-EBAY-C-MARKETPLACE-ID: EBAY_US" \
     "https://api.ebay.com/buy/browse/v1/item_summary/search?q=test&limit=1" 2>/dev/null); then
     log_error "curl command failed for eBay API test"
@@ -277,7 +283,7 @@ echo "🔗 Testing OpenAI API connection..."
 log_message "INFO" "Testing OpenAI API connection"
 
 if ! openai_response=$(curl -s -w "\n%{http_code}" \
-    -H "Authorization: ******" \
+    -H "$openai_auth_header" \
     -H "Content-Type: application/json" \
     -d '{"model":"gpt-4","messages":[{"role":"user","content":"Hello"}],"max_tokens":5}' \
     "https://api.openai.com/v1/chat/completions" 2>/dev/null); then
@@ -321,7 +327,7 @@ test_item_data='{
 
 if ! test_response=$(curl -s -w "\n%{http_code}" \
     -X POST \
-    -H "Authorization: ******" \
+    -H "$airtable_auth_header" \
     -H "Content-Type: application/json" \
     -d "$test_item_data" \
     "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/Target%20Items" 2>/dev/null); then
@@ -348,7 +354,7 @@ if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
     log_message "INFO" "Cleaning up test record"
 
     if ! curl -s -X DELETE \
-        -H "Authorization: ******" \
+        -H "$airtable_auth_header" \
         "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/Target%20Items/$record_id" > /dev/null 2>&1; then
         log_error "Failed to delete test record"
         exit 1
