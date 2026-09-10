@@ -140,7 +140,7 @@ is_placeholder_value() {
 }
 
 is_valid_airtable_base_id() {
-    [[ "${1:-}" =~ ^app[[:alnum:]]+$ ]]
+    [[ "${1:-}" =~ ^app[[:alnum:]]{14}$ ]]
 }
 
 url_encode() {
@@ -166,7 +166,7 @@ check_make_endpoint() {
     local http_code
 
     http_code=$(curl -sS --max-time "$TIMEOUT" -o /dev/null -w "%{http_code}" "$url" || true)
-    if [ "$probe_mode" = "host-fallback" ] && [[ "$http_code" =~ ^[2-4][0-9]{2}$ ]]; then
+    if [ "$probe_mode" = "host-fallback" ] && [[ "$http_code" =~ ^[23][0-9]{2}$ ]]; then
         echo "✅ Make.com host reachable ($http_code)"
         log_message "INFO" "Make.com host reachable with HTTP $http_code"
         return 0
@@ -267,7 +267,6 @@ main() {
         load_env_file "$env_file_path"
     elif [ "$env_file_explicit" = true ]; then
         log_error "Monitoring env file not found: $env_file_path"
-        echo "❌ Monitoring env file not found: $env_file_path" >&2
         exit 1
     fi
 

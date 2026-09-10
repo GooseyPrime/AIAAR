@@ -48,9 +48,12 @@ test_make_host_fallback_accepts_redirect() {
 
 test_make_host_fallback_accepts_server_error_response() {
     local output
-    MOCK_CURL_HTTP_CODE="404"
+    MOCK_CURL_HTTP_CODE="301"
     output="$(check_make_endpoint "https://hook.make.com" "host-fallback")"
-    assert_contains "$output" "Make.com host reachable (404)"
+    assert_contains "$output" "Make.com host reachable (301)"
+
+    MOCK_CURL_HTTP_CODE="404"
+    assert_failure check_make_endpoint "https://hook.make.com" "host-fallback"
 
     MOCK_CURL_HTTP_CODE="500"
     assert_failure check_make_endpoint "https://hook.make.com" "host-fallback"
@@ -140,8 +143,9 @@ test_timeout_argument_validation() {
 }
 
 test_airtable_base_id_validation() {
-    assert_success is_valid_airtable_base_id "app123ABC"
+    assert_success is_valid_airtable_base_id "app1234567890ABCD"
     assert_failure is_valid_airtable_base_id "<base-id-redacted>"
+    assert_failure is_valid_airtable_base_id "app1"
     assert_failure is_valid_airtable_base_id "base123"
 }
 
