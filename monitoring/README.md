@@ -131,7 +131,7 @@ Then run it live in production with environment values loaded:
 What it checks:
 
 - Make.com webhook/API hostname reachability using `MAKE_WEBHOOK_BASE_URL` (defaults to `https://hook.make.com`)
-- Airtable base read access using `AIRTABLE_API_KEY` and `AIRTABLE_BASE_ID`
+- Airtable base read access using `AIRTABLE_API_KEY`, `AIRTABLE_BASE_ID`, and an optional `AIRTABLE_HEALTHCHECK_TABLE` override when your production base does not use `Target Items`
 
 What it does **not** check:
 
@@ -154,8 +154,8 @@ When an alert fires:
 2. Check Make.com execution history and the latest Airtable/API errors
 3. Pause unsafe automations if bids, purchases, or listings could be impacted
 4. Fix credentials, mappings, or rate-limit pressure
-5. rerun `./scripts/monitoring-health-check.sh`
-6. confirm the next scheduled scenario run succeeds
+5. Rerun `./scripts/monitoring-health-check.sh`
+6. Confirm the next scheduled scenario run succeeds
 
 ## Related repository references
 

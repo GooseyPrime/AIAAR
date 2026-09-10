@@ -22,6 +22,7 @@ openai:
 airtable:
   api_key: "YOUR_AIRTABLE_API_KEY"
   base_id: "YOUR_AIRTABLE_BASE_ID"
+  healthcheck_table: "Target Items"
   
 # PayPal Configuration
 paypal:

@@ -162,6 +162,11 @@ populate_from_config() {
         export AIRTABLE_BASE_ID
     fi
 
+    if [ -z "${AIRTABLE_HEALTHCHECK_TABLE:-}" ]; then
+        AIRTABLE_HEALTHCHECK_TABLE="$(strip_wrapping_quotes "$(yaml_value airtable healthcheck_table "$CONFIG_FILE")")"
+        export AIRTABLE_HEALTHCHECK_TABLE
+    fi
+
     if [ -z "${MAKE_WEBHOOK_BASE_URL:-}" ]; then
         MAKE_WEBHOOK_BASE_URL="$(strip_wrapping_quotes "$(yaml_value make webhook_base_url "$CONFIG_FILE")")"
         export MAKE_WEBHOOK_BASE_URL
@@ -185,12 +190,33 @@ is_placeholder_value() {
     esac
 }
 
+url_encode() {
+    local value="${1:-}"
+    local encoded=""
+    local i
+    local char
+
+    for ((i=0; i<${#value}; i++)); do
+        char="${value:i:1}"
+        case "$char" in
+            [a-zA-Z0-9.~_-])
+                encoded+="$char"
+                ;;
+            *)
+                printf -v encoded '%s%%%02X' "$encoded" "'$char"
+                ;;
+        esac
+    done
+
+    printf '%s' "$encoded"
+}
+
 check_make_endpoint() {
     local url="$1"
     local http_code
 
     http_code=$(curl -I -sS -L --max-time "$TIMEOUT" -o /dev/null -w "%{http_code}" "$url" || true)
-    if [[ "$http_code" =~ ^[1-4][0-9]{2}$ ]]; then
+    if [[ "$http_code" =~ ^(200|301|302|307|308|405)$ ]]; then
         echo "✅ Make.com endpoint reachable ($http_code)"
         log_message "INFO" "Make.com endpoint reachable with HTTP $http_code"
         return 0
@@ -253,7 +279,9 @@ fi
 populate_from_config
 
 make_url="${MAKE_WEBHOOK_BASE_URL:-https://hook.make.com}"
-airtable_url="https://api.airtable.com/v0/${AIRTABLE_BASE_ID:-YOUR_AIRTABLE_BASE_ID}/Target%20Items?maxRecords=1"
+airtable_table="${AIRTABLE_HEALTHCHECK_TABLE:-Target Items}"
+airtable_table_encoded="$(url_encode "$airtable_table")"
+airtable_url="https://api.airtable.com/v0/${AIRTABLE_BASE_ID:-YOUR_AIRTABLE_BASE_ID}/${airtable_table_encoded}?maxRecords=1"
 
 echo "📡 AIAAR production monitoring health check"
 echo "=========================================="
@@ -262,6 +290,7 @@ if [ "$DRY_RUN" = true ]; then
     echo "🧪 Dry run only - no live API calls will be made."
     echo "Would probe Make.com endpoint: $make_url"
     echo "Would probe Airtable endpoint: $airtable_url"
+    echo "Airtable probe table: $airtable_table"
     echo "Timeout: ${TIMEOUT}s"
     exit 0
 fi
