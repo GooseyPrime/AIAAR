@@ -297,6 +297,125 @@ Regular review of:
    - Quarterly security review
    - Annual system audit
 
+## Error Handling Strategy
+
+### Shell Script Error Handling
+
+All shell scripts in this project implement robust error handling using the following strategy:
+
+#### Core Error Handling Principles
+
+1. **Strict Mode**: All scripts use `set -euo pipefail` for comprehensive error detection:
+   - `set -e`: Exit immediately on any command failure
+   - `set -u`: Treat unset variables as errors
+   - `set -o pipefail`: Ensure pipeline failures are caught
+
+2. **Error Trapping**: Scripts implement error trap handlers that:
+   - Log the exact line where failure occurred
+   - Capture the exit code and failed command
+   - Record environment context for debugging
+   - Provide clear error messages to users
+
+3. **Comprehensive Logging**: All operations are logged with:
+   - Timestamp for each action
+   - Severity levels (INFO, WARN, ERROR)
+   - Separate error logs for troubleshooting
+   - Context information for debugging
+
+#### Error Log Locations
+
+- **General Logs**: `logs/setup.log` - All script activities
+- **Error Logs**: `logs/setup_errors.log` - Error-specific information
+- **Make.com Logs**: Available in Make.com dashboard
+- **API Logs**: Captured in respective service dashboards
+
+#### Error Recovery Procedures
+
+1. **Check Error Logs**: Always start with the error log files
+2. **Verify Environment**: Confirm all required variables are set
+3. **Test Dependencies**: Ensure all required tools are installed
+4. **Check Permissions**: Verify file and directory access rights
+5. **Validate Configuration**: Confirm API keys and configuration values
+
+#### Best Practices for New Scripts
+
+When creating new shell scripts in this project:
+
+```bash
+#!/bin/bash
+# Enable robust error handling
+set -euo pipefail
+
+# Set up logging
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOG_FILE="${SCRIPT_DIR}/../logs/$(basename "$0" .sh).log"
+ERROR_LOG="${SCRIPT_DIR}/../logs/$(basename "$0" .sh)_errors.log"
+
+# Create logs directory
+mkdir -p "$(dirname "$LOG_FILE")"
+
+# Logging functions
+log_message() {
+    local level="$1"
+    shift
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$level] $*" | tee -a "$LOG_FILE"
+}
+
+log_error() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] $*" | tee -a "$ERROR_LOG" >&2
+}
+
+# Error handler
+error_handler() {
+    local line_number="$1"
+    local error_code="$2"
+    local command="$3"
+    log_error "Script failed at line $line_number with exit code $error_code"
+    log_error "Failed command: $command"
+    exit "$error_code"
+}
+
+# Set up error trap
+trap 'error_handler ${LINENO} $? "$BASH_COMMAND"' ERR
+```
+
+#### API Error Handling
+
+1. **HTTP Status Code Checking**: Always verify API response codes
+2. **Timeout Handling**: Set appropriate timeouts for all API calls
+3. **Retry Logic**: Implement exponential backoff for transient failures
+4. **Rate Limit Respect**: Monitor and respect API rate limits
+5. **Graceful Degradation**: Provide fallback behaviors when possible
+
+#### Make.com Scenario Error Handling
+
+1. **Module-Level Retries**: Configure 3-5 retry attempts per module
+2. **Timeout Settings**: Set 30-60 second timeouts based on operation complexity
+3. **Error Notifications**: Set up Slack/email alerts for scenario failures
+4. **Data Validation**: Validate inputs and outputs at each step
+5. **Fallback Scenarios**: Create alternative workflows for critical failures
+
+#### Monitoring and Alerting
+
+1. **Log Monitoring**: Regularly review error logs for patterns
+2. **Performance Metrics**: Track success rates and response times
+3. **Automated Alerts**: Set up notifications for:
+   - Consecutive failures (>3)
+   - High error rates (>5%)
+   - API rate limit warnings (>80% usage)
+   - Authentication failures
+   - Critical system errors
+
+#### Emergency Response
+
+For critical errors that require immediate attention:
+
+1. **Stop Automation**: Pause Make.com scenarios to prevent further issues
+2. **Secure APIs**: Rotate API keys if security breach is suspected
+3. **Document Incident**: Record the issue details and resolution steps
+4. **Notify Stakeholders**: Alert relevant team members
+5. **Implement Fix**: Apply permanent solution to prevent recurrence
+
 ## Support Resources
 
 ### Internal Documentation
@@ -337,3 +456,7 @@ Regular review of:
 - Critical security issues
 - Financial impact scenarios
 - System-wide failures
+
+---
+
+**Updated: 2025-09-08T12:59:00-00:00 / 2025-09-08T12:59:00Z — Added comprehensive shell script error handling strategy and best practices**

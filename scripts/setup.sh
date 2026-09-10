@@ -10,24 +10,216 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONFIG_FILE="$REPO_ROOT/config/environment.yml"
 CONFIG_TEMPLATE="$REPO_ROOT/config/environment.template.yml"
 ENV_FILE="$REPO_ROOT/.env"
+LOG_DIR="$REPO_ROOT/logs"
+LOG_FILE="$LOG_DIR/setup.log"
+ERROR_LOG="$LOG_DIR/setup_errors.log"
+STATUS_FILE="$REPO_ROOT/.setup_status"
 DRY_RUN=false
+
+mkdir -p "$LOG_DIR"
+cd "$REPO_ROOT"
+
+log_message() {
+    local level="$1"
+    shift
+    local message="$*"
+    local timestamp
+    timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
+    echo "[$timestamp] [$level] $message" | tee -a "$LOG_FILE"
+}
+
+log_error() {
+    local message="$*"
+    local timestamp
+    timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
+    echo "[$timestamp] [ERROR] $message" | tee -a "$ERROR_LOG" >&2
+}
+
+log_env_status() {
+    local var_name="$1"
+    if [ -n "${!var_name:-}" ]; then
+        printf '%s=present' "$var_name"
+    else
+        printf '%s=missing' "$var_name"
+    fi
+}
+
+error_handler() {
+    trap - ERR
+    set +e
+
+    local line_number="${1:-unknown}"
+    local error_code="${2:-1}"
+    local command="${3:-unknown}"
+
+    log_error "Script failed at line $line_number with exit code $error_code"
+    log_error "Failed command: $command"
+    log_error "Repository root: $REPO_ROOT"
+    log_error "Environment status: $(log_env_status AIRTABLE_API_KEY), $(log_env_status AIRTABLE_BASE_ID), $(log_env_status EBAY_CLIENT_ID), $(log_env_status OPENAI_API_KEY)"
+    echo "❌ Setup failed. Check error logs at $ERROR_LOG for details." >&2
+    exit "$error_code"
+}
+
+trap 'error_handler ${LINENO} $? "$BASH_COMMAND"' ERR
+
+trim_whitespace() {
+    local value="${1:-}"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    printf '%s' "$value"
+}
+
+strip_inline_comment() {
+    local value="${1:-}"
+    local output=""
+    local quote=""
+    local char
+    local previous_char=""
+    local i
+
+    for ((i=0; i<${#value}; i++)); do
+        char="${value:i:1}"
+
+        if [ -z "$quote" ]; then
+            if [ "$char" = "#" ] && { [ "$i" -eq 0 ] || [[ "$previous_char" =~ [[:space:]] ]]; }; then
+                break
+            fi
+
+            if [ "$char" = "\"" ] || [ "$char" = "'" ]; then
+                quote="$char"
+            fi
+        elif [ "$char" = "$quote" ]; then
+            quote=""
+        fi
+
+        output+="$char"
+        previous_char="$char"
+    done
+
+    trim_whitespace "$output"
+}
 
 load_env_file() {
     local env_file="$1"
+    local line
+    local key
+    local value
 
-    while IFS='=' read -r key value; do
-        if [ -z "${key// }" ] || [[ "$key" =~ ^[[:space:]]*# ]]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+        if [ -z "${line// }" ] || [[ "$line" =~ ^[[:space:]]*# ]]; then
             continue
         fi
 
-        key="$(echo "$key" | xargs)"
-        value="$(echo "${value:-}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
-        value="${value%\"}"
-        value="${value#\"}"
-        value="${value%\'}"
-        value="${value#\'}"
-        export "$key=$value"
+        key="${line%%=*}"
+        if [ "$key" = "$line" ]; then
+            continue
+        fi
+
+        value="${line#*=}"
+        key="$(trim_whitespace "$key")"
+        value="$(trim_whitespace "${value:-}")"
+        value="$(strip_inline_comment "$value")"
+        if ! [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+            log_error "Invalid environment variable name in $env_file: $key"
+            exit 1
+        fi
+
+        value="$(strip_wrapping_quotes "$value")"
+        declare -gx "$key=$value"
     done < "$env_file"
+}
+
+set_if_unset() {
+    local var_name="$1"
+    local value="$2"
+
+    if [ -z "${!var_name:-}" ]; then
+        declare -gx "$var_name=$value"
+    fi
+}
+
+assert_no_newlines() {
+    local var_name="$1"
+    local value=""
+
+    if [ -z "${!var_name+x}" ]; then
+        return
+    fi
+
+    value="${!var_name}"
+
+    case "$value" in
+        *$'\n'*|*$'\r'*)
+            log_error "Invalid newline detected in $var_name"
+            exit 1
+            ;;
+    esac
+}
+
+response_body() {
+    printf '%s\n' "$1" | sed '$d'
+}
+
+response_http_code() {
+    printf '%s\n' "$1" | sed -n '$p'
+}
+
+ensure_http_code() {
+    local http_code="$1"
+    local context="$2"
+
+    if ! [[ "$http_code" =~ ^[0-9]{3}$ ]]; then
+        log_error "$context returned invalid HTTP status: ${http_code:-missing}"
+        exit 1
+    fi
+}
+
+is_placeholder_value() {
+    case "${1:-}" in
+        ""|YOUR_*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+fetch_ebay_auth_token() {
+    local basic_auth
+    local token_response
+    local http_code
+    local access_token
+
+    if ! basic_auth=$(printf '%s:%s' "$EBAY_CLIENT_ID" "$EBAY_CLIENT_SECRET" | base64 | tr -d '\n'); then
+        log_error "Failed to encode eBay client credentials"
+        exit 1
+    fi
+
+    if ! token_response=$(curl -s -w "\n%{http_code}" \
+        -X POST \
+        -H "Authorization: Basic $basic_auth" \
+        -H "Content-Type: application/x-www-form-urlencoded" \
+        -d "grant_type=client_credentials&scope=https%3A%2F%2Fapi.ebay.com%2Foauth%2Fapi_scope" \
+        "https://api.ebay.com/identity/v1/oauth2/token" 2>/dev/null); then
+        log_error "Failed to obtain eBay access token"
+        exit 1
+    fi
+
+    http_code=$(response_http_code "$token_response")
+    ensure_http_code "$http_code" "eBay token request"
+    if [ "$http_code" != "200" ]; then
+        log_error "eBay token request failed with HTTP $http_code"
+        exit 1
+    fi
+
+    access_token=$(response_body "$token_response" | jq -r '.access_token' 2>/dev/null)
+    if [ -z "$access_token" ] || [ "$access_token" = "null" ]; then
+        log_error "Failed to parse eBay access token"
+        exit 1
+    fi
+
+    printf '%s' "$access_token"
 }
 
 yaml_value() {
@@ -36,22 +228,52 @@ yaml_value() {
     local file="$3"
 
     awk -v section="$section" -v key="$key" '
-        $0 ~ "^[[:space:]]*" section ":[[:space:]]*$" { in_section=1; next }
-        in_section && $0 ~ "^[^[:space:]]" { in_section=0 }
-        in_section && $0 ~ "^[[:space:]]+" key ":[[:space:]]*" {
-            sub("^[[:space:]]+" key ":[[:space:]]*", "", $0)
-            print $0
-            exit
+        {
+            match($0, /^[[:space:]]*/)
+            indent = RLENGTH
+            trimmed = $0
+            sub(/^[[:space:]]+/, "", trimmed)
+
+            if (trimmed == section ":") {
+                in_section = 1
+                section_indent = indent
+                next
+            }
+
+            if (in_section && indent <= section_indent && trimmed != "" && trimmed !~ /^#/) {
+                in_section = 0
+            }
+
+            if (in_section) {
+                line = $0
+                sub(/^[[:space:]]+/, "", line)
+                prefix = key ":"
+
+                if (index(line, prefix) == 1) {
+                    value = substr(line, length(prefix) + 1)
+                    sub(/^[[:space:]]*/, "", value)
+                    print value
+                    exit
+                }
+            }
         }
     ' "$file"
 }
 
 strip_wrapping_quotes() {
     local value="${1:-}"
-    value="${value%\"}"
-    value="${value#\"}"
-    value="${value%\'}"
-    value="${value#\'}"
+    local first_char
+    local last_char
+
+    if [ "${#value}" -ge 2 ]; then
+        first_char="${value:0:1}"
+        last_char="${value: -1}"
+
+        if { [ "$first_char" = "\"" ] && [ "$last_char" = "\"" ]; } || { [ "$first_char" = "'" ] && [ "$last_char" = "'" ]; }; then
+            value="${value:1:${#value}-2}"
+        fi
+    fi
+
     printf '%s' "$value"
 }
 
@@ -60,13 +282,13 @@ populate_from_config() {
         return
     fi
 
-    AIRTABLE_API_KEY="${AIRTABLE_API_KEY:-$(strip_wrapping_quotes "$(yaml_value airtable api_key "$CONFIG_FILE")")}"
-    AIRTABLE_BASE_ID="${AIRTABLE_BASE_ID:-$(strip_wrapping_quotes "$(yaml_value airtable base_id "$CONFIG_FILE")")}"
-    EBAY_CLIENT_ID="${EBAY_CLIENT_ID:-$(strip_wrapping_quotes "$(yaml_value ebay client_id "$CONFIG_FILE")")}"
-    EBAY_CLIENT_SECRET="${EBAY_CLIENT_SECRET:-$(strip_wrapping_quotes "$(yaml_value ebay client_secret "$CONFIG_FILE")")}"
-    EBAY_AUTH_TOKEN="${EBAY_AUTH_TOKEN:-$(strip_wrapping_quotes "$(yaml_value ebay auth_token "$CONFIG_FILE")")}"
-    OPENAI_API_KEY="${OPENAI_API_KEY:-$(strip_wrapping_quotes "$(yaml_value openai api_key "$CONFIG_FILE")")}"
-    MAKE_WEBHOOK_BASE_URL="${MAKE_WEBHOOK_BASE_URL:-$(strip_wrapping_quotes "$(yaml_value make webhook_base_url "$CONFIG_FILE")")}"
+    set_if_unset AIRTABLE_API_KEY "$(strip_wrapping_quotes "$(yaml_value airtable api_key "$CONFIG_FILE")")"
+    set_if_unset AIRTABLE_BASE_ID "$(strip_wrapping_quotes "$(yaml_value airtable base_id "$CONFIG_FILE")")"
+    set_if_unset EBAY_CLIENT_ID "$(strip_wrapping_quotes "$(yaml_value ebay client_id "$CONFIG_FILE")")"
+    set_if_unset EBAY_CLIENT_SECRET "$(strip_wrapping_quotes "$(yaml_value ebay client_secret "$CONFIG_FILE")")"
+    set_if_unset EBAY_AUTH_TOKEN "$(strip_wrapping_quotes "$(yaml_value ebay auth_token "$CONFIG_FILE")")"
+    set_if_unset OPENAI_API_KEY "$(strip_wrapping_quotes "$(yaml_value openai api_key "$CONFIG_FILE")")"
+    set_if_unset MAKE_WEBHOOK_BASE_URL "$(strip_wrapping_quotes "$(yaml_value make webhook_base_url "$CONFIG_FILE")")"
 
     export AIRTABLE_API_KEY AIRTABLE_BASE_ID EBAY_CLIENT_ID EBAY_CLIENT_SECRET EBAY_AUTH_TOKEN OPENAI_API_KEY MAKE_WEBHOOK_BASE_URL
 }
@@ -102,115 +324,193 @@ for arg in "$@"; do
     esac
 done
 
-cd "$REPO_ROOT"
-
 echo "🚀 AIAAR Setup Script"
 echo "===================="
+log_message "INFO" "AIAAR Setup Script started"
 
 if [ -f "$ENV_FILE" ]; then
     echo "📖 Loading .env"
+    log_message "INFO" "Loading configuration from .env"
     load_env_file "$ENV_FILE"
 fi
 
 if [ -f "$CONFIG_FILE" ]; then
     echo "📖 Reading configuration from config/environment.yml"
+    log_message "INFO" "Reading configuration from config/environment.yml"
     populate_from_config
 fi
 
 if [ "$DRY_RUN" = true ]; then
+    log_message "INFO" "Running dry-run setup check"
     print_dry_run
     exit 0
 fi
 
-# Check if required tools are installed
-command -v curl >/dev/null 2>&1 || { echo "❌ curl is required but not installed. Aborting." >&2; exit 1; }
-command -v jq >/dev/null 2>&1 || { echo "❌ jq is required but not installed. Aborting." >&2; exit 1; }
+log_message "INFO" "Checking required dependencies"
+if ! command -v curl >/dev/null 2>&1; then
+    log_error "curl is required but not installed"
+    echo "❌ curl is required but not installed. Aborting." >&2
+    exit 1
+fi
 
-# Check for configuration file
+if ! command -v jq >/dev/null 2>&1; then
+    log_error "jq is required but not installed"
+    echo "❌ jq is required but not installed. Aborting." >&2
+    exit 1
+fi
+
+log_message "INFO" "All required dependencies found"
+
 if [ ! -f "$CONFIG_FILE" ] && [ ! -f "$ENV_FILE" ]; then
+    log_message "WARN" "Configuration files not found, creating template"
     echo "📝 Creating environment configuration..."
-    cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"
+    if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
+        log_error "Failed to copy environment template"
+        exit 1
+    fi
     echo "✅ Environment template created at config/environment.yml"
     echo "⚠️  Please edit config/environment.yml or .env with your API keys before continuing"
     exit 1
 fi
 
-# Verify required environment variables
-required_vars=("AIRTABLE_API_KEY" "AIRTABLE_BASE_ID" "EBAY_CLIENT_ID" "OPENAI_API_KEY")
+log_message "INFO" "Verifying required environment variables"
+required_vars=("AIRTABLE_API_KEY" "AIRTABLE_BASE_ID" "OPENAI_API_KEY")
 for var in "${required_vars[@]}"; do
     if [ -z "${!var:-}" ]; then
+        log_error "Required environment variable $var is not set"
         echo "❌ Required environment variable $var is not set"
         echo "Please update .env or config/environment.yml with your API keys"
         exit 1
     fi
+    log_message "INFO" "Environment variable $var is set"
 done
 
+if [ -n "${EBAY_AUTH_TOKEN:-}" ] && ! is_placeholder_value "$EBAY_AUTH_TOKEN"; then
+    log_message "INFO" "Using configured eBay auth token"
+elif [ -n "${EBAY_CLIENT_ID:-}" ] && [ -n "${EBAY_CLIENT_SECRET:-}" ] && ! is_placeholder_value "$EBAY_CLIENT_ID" && ! is_placeholder_value "$EBAY_CLIENT_SECRET"; then
+    log_message "INFO" "Using eBay client credentials to request an access token"
+else
+    log_error "Set a real EBAY_AUTH_TOKEN or non-placeholder EBAY_CLIENT_ID and EBAY_CLIENT_SECRET"
+    echo "❌ Set EBAY_AUTH_TOKEN or both EBAY_CLIENT_ID and EBAY_CLIENT_SECRET to real values"
+    echo "Please update .env or config/environment.yml with your eBay credentials"
+    exit 1
+fi
+
 echo "✅ Configuration validated"
+log_message "INFO" "All required environment variables validated"
 
-# Test Airtable connection
+assert_no_newlines AIRTABLE_API_KEY
+assert_no_newlines OPENAI_API_KEY
+
+if [ -n "${EBAY_AUTH_TOKEN:-}" ] && ! is_placeholder_value "$EBAY_AUTH_TOKEN"; then
+    assert_no_newlines EBAY_AUTH_TOKEN
+elif [ -n "${EBAY_CLIENT_ID:-}" ] && [ -n "${EBAY_CLIENT_SECRET:-}" ] && ! is_placeholder_value "$EBAY_CLIENT_ID" && ! is_placeholder_value "$EBAY_CLIENT_SECRET"; then
+    assert_no_newlines EBAY_CLIENT_ID
+    assert_no_newlines EBAY_CLIENT_SECRET
+    log_message "INFO" "Requesting eBay access token from client credentials"
+    EBAY_AUTH_TOKEN="$(fetch_ebay_auth_token)"
+    export EBAY_AUTH_TOKEN
+fi
+
+auth_header_prefix="Authorization: Bearer"
+airtable_auth_header="$auth_header_prefix $AIRTABLE_API_KEY"
+ebay_auth_header="$auth_header_prefix $EBAY_AUTH_TOKEN"
+openai_auth_header="$auth_header_prefix $OPENAI_API_KEY"
+
 echo "🔗 Testing Airtable connection..."
-airtable_response=$(curl -s -w "\n%{http_code}" \
-    -H "Authorization: Bearer $AIRTABLE_API_KEY" \
-    "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/Target%20Items?maxRecords=1")
+log_message "INFO" "Testing Airtable API connection"
 
-http_code=$(echo "$airtable_response" | tail -n1)
+if ! airtable_response=$(curl -s -w "\n%{http_code}" \
+    -H "$airtable_auth_header" \
+    "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/Target%20Items?maxRecords=1" 2>/dev/null); then
+    log_error "curl command failed for Airtable API test"
+    exit 1
+fi
+
+http_code=$(response_http_code "$airtable_response")
+ensure_http_code "$http_code" "Airtable API"
+log_message "INFO" "Airtable API responded with HTTP code: $http_code"
+
 if [ "$http_code" -eq 200 ]; then
     echo "✅ Airtable connection successful"
+    log_message "INFO" "Airtable connection test successful"
 elif [ "$http_code" -eq 401 ]; then
+    log_error "Airtable authentication failed (HTTP 401)"
     echo "❌ Airtable authentication failed. Check your API key."
     exit 1
 elif [ "$http_code" -eq 404 ]; then
+    log_error "Airtable base not found (HTTP 404)"
     echo "❌ Airtable base not found. Check your Base ID or create tables first."
     exit 1
 else
+    log_error "Airtable connection failed with HTTP $http_code"
     echo "❌ Airtable connection failed with HTTP $http_code"
     exit 1
 fi
 
-# Test eBay API connection
 echo "🔗 Testing eBay API connection..."
-ebay_response=$(curl -s -w "\n%{http_code}" \
-    -H "Authorization: Bearer $EBAY_AUTH_TOKEN" \
-    -H "X-EBAY-C-MARKETPLACE-ID: EBAY_US" \
-    "https://api.ebay.com/buy/browse/v1/item_summary/search?q=test&limit=1")
+log_message "INFO" "Testing eBay API connection"
 
-http_code=$(echo "$ebay_response" | tail -n1)
+if ! ebay_response=$(curl -s -w "\n%{http_code}" \
+    -H "$ebay_auth_header" \
+    -H "X-EBAY-C-MARKETPLACE-ID: EBAY_US" \
+    "https://api.ebay.com/buy/browse/v1/item_summary/search?q=test&limit=1" 2>/dev/null); then
+    log_error "curl command failed for eBay API test"
+    exit 1
+fi
+
+http_code=$(response_http_code "$ebay_response")
+ensure_http_code "$http_code" "eBay API"
+log_message "INFO" "eBay API responded with HTTP code: $http_code"
+
 if [ "$http_code" -eq 200 ]; then
     echo "✅ eBay API connection successful"
+    log_message "INFO" "eBay API connection test successful"
 elif [ "$http_code" -eq 401 ]; then
+    log_error "eBay authentication failed (HTTP 401)"
     echo "❌ eBay authentication failed. Check your auth token."
     exit 1
 else
+    log_error "eBay API connection failed with HTTP $http_code"
     echo "❌ eBay API connection failed with HTTP $http_code"
     exit 1
 fi
 
-# Test OpenAI API connection
 echo "🔗 Testing OpenAI API connection..."
-openai_response=$(curl -s -w "\n%{http_code}" \
-    -H "Authorization: Bearer $OPENAI_API_KEY" \
-    -H "Content-Type: application/json" \
-    -d '{"model":"gpt-4","messages":[{"role":"user","content":"Hello"}],"max_tokens":5}' \
-    "https://api.openai.com/v1/chat/completions")
+log_message "INFO" "Testing OpenAI API connection"
 
-http_code=$(echo "$openai_response" | tail -n1)
+if ! openai_response=$(curl -s -w "\n%{http_code}" \
+    -H "$openai_auth_header" \
+    "https://api.openai.com/v1/models" 2>/dev/null); then
+    log_error "curl command failed for OpenAI API test"
+    exit 1
+fi
+
+http_code=$(response_http_code "$openai_response")
+ensure_http_code "$http_code" "OpenAI API"
+log_message "INFO" "OpenAI API responded with HTTP code: $http_code"
+
 if [ "$http_code" -eq 200 ]; then
     echo "✅ OpenAI API connection successful"
+    log_message "INFO" "OpenAI API connection test successful"
 elif [ "$http_code" -eq 401 ]; then
+    log_error "OpenAI authentication failed (HTTP 401)"
     echo "❌ OpenAI authentication failed. Check your API key."
     exit 1
 else
+    log_error "OpenAI API connection failed with HTTP $http_code"
     echo "❌ OpenAI API connection failed with HTTP $http_code"
     exit 1
 fi
 
-# Create initial test records
 echo "📊 Creating test data in Airtable..."
+log_message "INFO" "Creating test data in Airtable"
 
-# Create a test target item
+test_item_id="TEST-ITEM-$(date +%s)-$$-$(awk 'BEGIN { srand(); printf \"%06d\", rand() * 1000000 }')"
+
 test_item_data='{
     "fields": {
-        "itemId": "TEST-ITEM-001",
+        "itemId": "'"$test_item_id"'",
         "title": "Test Item for Setup Validation",
         "currentPrice": 25.00,
         "maxBid": 30.00,
@@ -223,45 +523,83 @@ test_item_data='{
     }
 }'
 
-test_response=$(curl -s -w "\n%{http_code}" \
+if ! test_response=$(curl -s -w "\n%{http_code}" \
     -X POST \
-    -H "Authorization: Bearer $AIRTABLE_API_KEY" \
+    -H "$airtable_auth_header" \
     -H "Content-Type: application/json" \
     -d "$test_item_data" \
-    "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/Target%20Items")
+    "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/Target%20Items" 2>/dev/null); then
+    log_error "curl command failed for test record creation"
+    exit 1
+fi
 
-http_code=$(echo "$test_response" | tail -n1)
+http_code=$(response_http_code "$test_response")
+ensure_http_code "$http_code" "Airtable test record creation"
+log_message "INFO" "Test record creation responded with HTTP code: $http_code"
+
 if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 201 ]; then
     echo "✅ Test record created successfully"
-    # Extract record ID for cleanup
-    record_id=$(echo "$test_response" | head -n -1 | jq -r '.id')
+    log_message "INFO" "Test record created successfully"
+
+    if ! record_id=$(response_body "$test_response" | jq -r '.id' 2>/dev/null); then
+        log_error "Failed to parse record ID from response"
+        exit 1
+    fi
+
+    if [ -z "$record_id" ] || [ "$record_id" = "null" ]; then
+        log_error "Test record creation response did not include a valid record ID"
+        exit 1
+    fi
+
     echo "📝 Test record ID: $record_id"
-    
-    # Clean up test record
+    log_message "INFO" "Test record ID: $record_id"
+
     echo "🧹 Cleaning up test record..."
-    curl -s -X DELETE \
-        -H "Authorization: Bearer $AIRTABLE_API_KEY" \
-        "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/Target%20Items/$record_id" > /dev/null
+    log_message "INFO" "Cleaning up test record"
+
+    if ! delete_response=$(curl -s -w "\n%{http_code}" -X DELETE \
+        -H "$airtable_auth_header" \
+        "https://api.airtable.com/v0/$AIRTABLE_BASE_ID/Target%20Items/$record_id" 2>/dev/null); then
+        log_error "Failed to delete test record"
+        exit 1
+    fi
+
+    delete_http_code=$(response_http_code "$delete_response")
+    ensure_http_code "$delete_http_code" "Airtable test record cleanup"
+    if [ "$delete_http_code" -ne 200 ]; then
+        log_error "Failed to delete test record with HTTP $delete_http_code"
+        exit 1
+    fi
+
     echo "✅ Test record cleaned up"
+    log_message "INFO" "Test record cleaned up successfully"
 else
+    log_error "Failed to create test record with HTTP $http_code"
     echo "❌ Failed to create test record with HTTP $http_code"
     exit 1
 fi
 
-# Generate webhook URLs for Make.com
 echo "🔗 Generating webhook URLs..."
+log_message "INFO" "Generating webhook URLs for Make.com"
+
 webhook_base="${MAKE_WEBHOOK_BASE_URL:-https://hook.make.com}"
 echo "Webhook URLs for Make.com configuration:"
 echo "  Auction Won: $webhook_base/auction-won"
 echo "  Item Sold: $webhook_base/item-sold"
 echo "  Shipping Update: $webhook_base/shipping-update"
+log_message "INFO" "Webhook URLs generated with base: $webhook_base"
 
-# Create directories for logs and backups
 echo "📁 Creating directories..."
-mkdir -p logs backups temp
-echo "✅ Directories created"
+log_message "INFO" "Creating required directories"
 
-# Generate summary report
+if ! mkdir -p "$LOG_DIR" "$REPO_ROOT/backups" "$REPO_ROOT/temp"; then
+    log_error "Failed to create required directories"
+    exit 1
+fi
+
+echo "✅ Directories created"
+log_message "INFO" "Required directories created successfully"
+
 echo ""
 echo "🎉 Setup Complete!"
 echo "=================="
@@ -289,8 +627,9 @@ echo "- Start with small spending limits and increase gradually"
 echo "- Monitor all automated activities closely"
 echo "- Set up proper error handling and notifications"
 
-# Create a status file
-cat > .setup_status << EOF
+log_message "INFO" "Creating setup status file"
+
+if ! cat > "$STATUS_FILE" << EOF
 {
     "setup_completed": true,
     "setup_date": "$(date -Iseconds)",
@@ -302,5 +641,10 @@ cat > .setup_status << EOF
     "version": "1.0.0"
 }
 EOF
+then
+    log_error "Failed to create setup status file"
+    exit 1
+fi
 
 echo "✅ Setup status saved to .setup_status"
+log_message "INFO" "Setup completed successfully - status file created"

@@ -53,9 +53,10 @@ Before setting up the Automated Auction Assistant, ensure you have:
 
 ## Step 2: Environment Configuration
 
-1. Copy `/home/runner/work/AIAAR/AIAAR/.env.example` to `/home/runner/work/AIAAR/AIAAR/.env`
-2. Copy `/config/environment.template.yml` to `/config/environment.yml` if you want to override non-secret defaults
+1. Copy `.env.example` to `.env`
+2. Copy `config/environment.template.yml` to `config/environment.yml` if you want to add non-secret defaults that are not already set in `.env`
 3. Fill in API keys in `.env` and any optional configuration values in `config/environment.yml`:
+   - `.env` remains the source of truth for secrets and any values already defined there.
 
 ```yaml
 # eBay Configuration
@@ -159,10 +160,10 @@ Enable error handling for each scenario:
 Run the local dry-run command before attempting any live API checks:
 
 ```bash
-/home/runner/work/AIAAR/AIAAR/scripts/health-check.sh
+./scripts/health-check.sh
 ```
 
-This command exits successfully without calling Airtable, eBay, or OpenAI when credentials are missing.
+This command skips the live Airtable, eBay, and OpenAI API calls so you can validate the local script wiring first.
 
 ### 6.1 Sandbox Testing
 

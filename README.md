@@ -30,29 +30,40 @@ This project contains configuration, documentation, and helper scripts for a par
 ## Quick Start
 
 1. Clone this repository
-2. Copy `/home/runner/work/AIAAR/AIAAR/.env.example` to `/home/runner/work/AIAAR/AIAAR/.env`
-3. (Optional) Copy `/home/runner/work/AIAAR/AIAAR/config/environment.template.yml` to `/home/runner/work/AIAAR/AIAAR/config/environment.yml` for non-secret settings
-4. Run `/home/runner/work/AIAAR/AIAAR/scripts/health-check.sh`
-5. Follow the setup guide in `/home/runner/work/AIAAR/AIAAR/docs/setup-guide.md`
+2. Copy `.env.example` to `.env`
+3. (Optional) Copy `config/environment.template.yml` to `config/environment.yml` for non-secret settings that are not already set in `.env`
+4. Run `./scripts/health-check.sh`
+5. Follow the setup guide in `docs/setup-guide.md`
 
 ## Run locally
 
 1. From the repository root, create a local secrets file:
-   - `cp /home/runner/work/AIAAR/AIAAR/.env.example /home/runner/work/AIAAR/AIAAR/.env`
-2. Edit `/home/runner/work/AIAAR/AIAAR/.env` and replace placeholder values with your own credentials.
-3. If you want to customize non-secret defaults such as sandbox mode or webhook URLs, copy:
-   - `cp /home/runner/work/AIAAR/AIAAR/config/environment.template.yml /home/runner/work/AIAAR/AIAAR/config/environment.yml`
+   - `cp .env.example .env`
+2. Edit `.env` and replace placeholder values with your own credentials.
+3. If you want to customize non-secret defaults such as sandbox mode or webhook URLs that are not already set in `.env`, copy:
+   - `cp config/environment.template.yml config/environment.yml`
+   - `.env` remains the source of truth for secrets and any values already defined there.
 4. Run the dry-run command first:
-   - `/home/runner/work/AIAAR/AIAAR/scripts/health-check.sh`
-   - This prints the live setup actions it would take and exits with status `0` even when credentials are missing.
+   - `./scripts/health-check.sh`
+   - This prints the live setup actions it would take and skips the live API calls.
 5. When you are ready to exercise live integrations, run:
-   - `/home/runner/work/AIAAR/AIAAR/scripts/setup.sh`
+   - `./scripts/setup.sh`
 
 ## Dry run
 
-- `/home/runner/work/AIAAR/AIAAR/scripts/health-check.sh`
-- Equivalent direct command: `/home/runner/work/AIAAR/AIAAR/scripts/setup.sh --dry-run`
+- `./scripts/health-check.sh`
+- Equivalent direct command: `./scripts/setup.sh --dry-run`
 - The dry run never calls Airtable, eBay, or OpenAI. It only reports what the live setup would do.
+
+## Error Handling & Troubleshooting
+
+This project implements robust error handling across all automation scripts and Make.com scenarios. All shell scripts use `set -euo pipefail` and comprehensive logging to minimize silent failures.
+
+**🚨 If you encounter issues, check the [Troubleshooting Guide](docs/troubleshooting.md) first** - it contains detailed solutions for common problems and our complete error handling strategy.
+
+**Error logs are located in:**
+- `logs/setup.log` - General setup activities
+- `logs/setup_errors.log` - Detailed error information
 
 ## Documentation
 
@@ -60,7 +71,7 @@ This project contains configuration, documentation, and helper scripts for a par
 - [API Configuration](docs/api-configuration.md)
 - [Make.com Scenarios](docs/scenarios-guide.md)
 - [Database Schema](docs/database-schema.md)
-- [Troubleshooting](docs/troubleshooting.md)
+- **[Troubleshooting Guide](docs/troubleshooting.md)** ⭐ Start here for error resolution
 
 ## License
 
