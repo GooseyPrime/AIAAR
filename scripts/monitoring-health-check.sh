@@ -5,7 +5,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ENV_FILE="$REPO_ROOT/.env"
-CONFIG_FILE="$REPO_ROOT/config/environment.yml"
 LOG_DIR="$REPO_ROOT/logs"
 LOG_FILE="$LOG_DIR/monitoring-health-check.log"
 ERROR_LOG="$LOG_DIR/monitoring-health-check_errors.log"
@@ -109,70 +108,6 @@ load_env_file() {
     done < "$env_file"
 }
 
-yaml_value() {
-    local section="$1"
-    local key="$2"
-    local file="$3"
-
-    awk -v section="$section" -v key="$key" '
-        {
-            match($0, /^[[:space:]]*/)
-            indent = RLENGTH
-            trimmed = $0
-            sub(/^[[:space:]]+/, "", trimmed)
-
-            if (trimmed == section ":") {
-                in_section = 1
-                section_indent = indent
-                next
-            }
-
-            if (in_section && indent <= section_indent && trimmed != "" && trimmed !~ /^#/) {
-                in_section = 0
-            }
-
-            if (in_section) {
-                line = $0
-                sub(/^[[:space:]]+/, "", line)
-                prefix = key ":"
-
-                if (index(line, prefix) == 1) {
-                    value = substr(line, length(prefix) + 1)
-                    sub(/^[[:space:]]*/, "", value)
-                    print value
-                    exit
-                }
-            }
-        }
-    ' "$file"
-}
-
-populate_from_config() {
-    if [ ! -f "$CONFIG_FILE" ]; then
-        return
-    fi
-
-    if [ -z "${AIRTABLE_API_KEY:-}" ]; then
-        AIRTABLE_API_KEY="$(strip_wrapping_quotes "$(yaml_value airtable api_key "$CONFIG_FILE")")"
-        export AIRTABLE_API_KEY
-    fi
-
-    if [ -z "${AIRTABLE_BASE_ID:-}" ]; then
-        AIRTABLE_BASE_ID="$(strip_wrapping_quotes "$(yaml_value airtable base_id "$CONFIG_FILE")")"
-        export AIRTABLE_BASE_ID
-    fi
-
-    if [ -z "${AIRTABLE_HEALTHCHECK_TABLE:-}" ]; then
-        AIRTABLE_HEALTHCHECK_TABLE="$(strip_wrapping_quotes "$(yaml_value airtable healthcheck_table "$CONFIG_FILE")")"
-        export AIRTABLE_HEALTHCHECK_TABLE
-    fi
-
-    if [ -z "${MAKE_WEBHOOK_BASE_URL:-}" ]; then
-        MAKE_WEBHOOK_BASE_URL="$(strip_wrapping_quotes "$(yaml_value make webhook_base_url "$CONFIG_FILE")")"
-        export MAKE_WEBHOOK_BASE_URL
-    fi
-}
-
 usage() {
     cat <<EOF
 Usage: ./scripts/monitoring-health-check.sh [--dry-run] [--timeout SECONDS]
@@ -216,7 +151,7 @@ check_make_endpoint() {
     local http_code
 
     http_code=$(curl -sS --max-time "$TIMEOUT" -o /dev/null -w "%{http_code}" "$url" || true)
-    if [[ "$http_code" =~ ^(200|301|302|307|308)$ ]]; then
+    if [ "$http_code" = "200" ]; then
         echo "✅ Make.com endpoint reachable ($http_code)"
         log_message "INFO" "Make.com endpoint reachable with HTTP $http_code"
         return 0
@@ -242,7 +177,11 @@ check_airtable_endpoint() {
         return 0
     fi
 
-    log_error "Airtable API check failed for $url with HTTP ${http_code:-000}"
+    if [ "$http_code" = "404" ] || [ "$http_code" = "422" ]; then
+        log_error "Airtable API check failed for the configured probe table ($airtable_table) with HTTP $http_code"
+    else
+        log_error "Airtable API check failed for $url with HTTP ${http_code:-000}"
+    fi
     return 1
 }
 
@@ -276,8 +215,6 @@ if [ -f "$ENV_FILE" ]; then
     load_env_file "$ENV_FILE"
 fi
 
-populate_from_config
-
 make_url="${MAKE_WEBHOOK_BASE_URL:-https://hook.make.com}"
 airtable_table="${AIRTABLE_HEALTHCHECK_TABLE:-Target Items}"
 airtable_table_encoded="$(url_encode "$airtable_table")"
@@ -298,7 +235,13 @@ fi
 
 if is_placeholder_value "${AIRTABLE_API_KEY:-}" || is_placeholder_value "${AIRTABLE_BASE_ID:-}"; then
     log_error "AIRTABLE_API_KEY and AIRTABLE_BASE_ID must be set before running live checks"
-    echo "❌ Set AIRTABLE_API_KEY and AIRTABLE_BASE_ID in .env, config/environment.yml, or the current shell." >&2
+    echo "❌ Set AIRTABLE_API_KEY and AIRTABLE_BASE_ID in .env or the current shell." >&2
+    exit 1
+fi
+
+if [ -z "${airtable_table}" ]; then
+    log_error "AIRTABLE_HEALTHCHECK_TABLE must reference an existing Airtable table"
+    echo "❌ Set AIRTABLE_HEALTHCHECK_TABLE to an existing Airtable table name." >&2
     exit 1
 fi
 
