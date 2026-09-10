@@ -377,42 +377,31 @@ if [ ! -f "$ENV_FILE" ]; then
         exit 1
     fi
     initialized_env=true
-fi
 
-if [ ! -f "$CONFIG_FILE" ]; then
-    if [ -f "$CONFIG_TEMPLATE" ]; then
-        if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
-            log_error "Failed to copy environment example"
-            exit 1
+    if [ ! -f "$CONFIG_FILE" ]; then
+        if [ -f "$CONFIG_TEMPLATE" ]; then
+            if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
+                log_error "Failed to copy environment example"
+                exit 1
+            fi
+            initialized_config=true
+        else
+            log_message "WARN" "Optional config example not found, skipping config/environment.yml initialization"
         fi
-        initialized_config=true
-    else
-        log_message "WARN" "Optional config example not found, skipping config/environment.yml initialization"
     fi
 fi
 
-if [ "$initialized_env" = true ] || [ "$initialized_config" = true ]; then
+if [ "$initialized_env" = true ]; then
     log_message "WARN" "Initialized missing local configuration files from examples"
-    if [ "$initialized_env" = true ]; then
-        load_env_file "$ENV_FILE"
-        if [ "$initialized_config" = true ] && [ -f "$CONFIG_FILE" ]; then
-            populate_from_config
-        fi
-    elif [ "$initialized_config" = true ] && [ -f "$CONFIG_FILE" ]; then
-        populate_from_config
-    fi
     echo "✅ Local environment files created:"
-    [ "$initialized_env" = true ] && echo "   - .env from .env.example"
+    echo "   - .env from .env.example"
     [ "$initialized_config" = true ] && echo "   - config/environment.yml from config/environment.example.yml"
-    if [ "$initialized_env" = true ] && [ "$initialized_config" = true ]; then
+    if [ "$initialized_config" = true ]; then
         echo "⚠️  Review .env for real API keys and config/environment.yml for local overrides before rerunning live setup."
-        exit 1
-    elif [ "$initialized_env" = true ]; then
+    else
         echo "⚠️  Review and replace placeholder API keys in .env before rerunning live setup."
-        exit 1
-    elif [ "$initialized_config" = true ]; then
-        echo "ℹ️  Continuing with values already loaded from .env for this run."
     fi
+    exit 1
 fi
 
 log_message "INFO" "Verifying required environment variables"
