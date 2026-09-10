@@ -416,10 +416,10 @@ if [ "$initialized_env" = true ]; then
     exit 1
 elif [ "$initialized_config" = true ]; then
     log_message "WARN" "Initialized missing local configuration files from examples"
-    populate_from_config
     echo "✅ Local environment files created:"
     echo "   - config/environment.yml from config/environment.example.yml"
-    echo "ℹ️  Continuing with values already loaded from .env for this run."
+    echo "⚠️  Review config/environment.yml for local overrides before rerunning live setup."
+    exit 1
 fi
 
 log_message "INFO" "Verifying required environment variables"
