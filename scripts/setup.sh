@@ -405,9 +405,10 @@ if [ -z "${EBAY_AUTH_TOKEN:-}" ] || is_placeholder_value "$EBAY_AUTH_TOKEN"; the
     export EBAY_AUTH_TOKEN
 fi
 
-printf -v airtable_auth_header '%s: %s %s' Authorization Bearer "$AIRTABLE_API_KEY"
-printf -v ebay_auth_header '%s: %s %s' Authorization Bearer "$EBAY_AUTH_TOKEN"
-printf -v openai_auth_header '%s: %s %s' Authorization Bearer "$OPENAI_API_KEY"
+auth_header_prefix="Authorization: Bearer"
+airtable_auth_header="$auth_header_prefix $AIRTABLE_API_KEY"
+ebay_auth_header="$auth_header_prefix $EBAY_AUTH_TOKEN"
+openai_auth_header="$auth_header_prefix $OPENAI_API_KEY"
 
 echo "🔗 Testing Airtable connection..."
 log_message "INFO" "Testing Airtable API connection"
@@ -498,7 +499,7 @@ fi
 echo "📊 Creating test data in Airtable..."
 log_message "INFO" "Creating test data in Airtable"
 
-test_item_id="TEST-ITEM-$(date +%s)-$$-${RANDOM}${RANDOM}"
+test_item_id="TEST-ITEM-$(date +%s)-$$-$(awk 'BEGIN { srand(); printf \"%06d\", rand() * 1000000 }')"
 
 test_item_data='{
     "fields": {
