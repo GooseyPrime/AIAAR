@@ -71,6 +71,7 @@ This project implements robust error handling across all automation scripts and 
 - [API Configuration](docs/api-configuration.md)
 - [Make.com Scenarios](docs/scenarios-guide.md)
 - [Database Schema](docs/database-schema.md)
+- [Security Guide](SECURITY.md)
 - **[Troubleshooting Guide](docs/troubleshooting.md)** ⭐ Start here for error resolution
 
 ## License
