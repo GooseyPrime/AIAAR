@@ -22,7 +22,14 @@ if ! command -v python3 >/dev/null 2>&1; then
     exit 1
 fi
 
-mapfile -t scenario_files < <(find "$SCENARIO_DIR" -maxdepth 1 -type f -name '*.json' | sort)
+scenario_files=()
+while IFS= read -r scenario_file; do
+    if [ -n "$scenario_file" ]; then
+        scenario_files+=("$scenario_file")
+    fi
+done <<EOF
+$(find "$SCENARIO_DIR" -maxdepth 1 -type f -name '*.json' | sort)
+EOF
 
 if [ "${#scenario_files[@]}" -eq 0 ]; then
     echo "❌ No Make.com scenario definitions found in $SCENARIO_DIR" >&2
