@@ -125,8 +125,7 @@ load_env_file() {
         fi
 
         value="$(strip_wrapping_quotes "$value")"
-        printf -v "$key" '%s' "$value"
-        export "$key"
+        declare -gx "$key=$value"
     done < "$env_file"
 }
 
@@ -135,8 +134,7 @@ set_if_unset() {
     local value="$2"
 
     if [ -z "${!var_name:-}" ]; then
-        printf -v "$var_name" '%s' "$value"
-        export "$var_name"
+        declare -gx "$var_name=$value"
     fi
 }
 
@@ -383,11 +381,11 @@ done
 
 if [ -n "${EBAY_AUTH_TOKEN:-}" ] && ! is_placeholder_value "$EBAY_AUTH_TOKEN"; then
     log_message "INFO" "Using configured eBay auth token"
-elif [ -n "${EBAY_CLIENT_ID:-}" ] && [ -n "${EBAY_CLIENT_SECRET:-}" ]; then
+elif [ -n "${EBAY_CLIENT_ID:-}" ] && [ -n "${EBAY_CLIENT_SECRET:-}" ] && ! is_placeholder_value "$EBAY_CLIENT_ID" && ! is_placeholder_value "$EBAY_CLIENT_SECRET"; then
     log_message "INFO" "Using eBay client credentials to request an access token"
 else
-    log_error "Either EBAY_AUTH_TOKEN or both EBAY_CLIENT_ID and EBAY_CLIENT_SECRET must be set"
-    echo "❌ Set EBAY_AUTH_TOKEN or both EBAY_CLIENT_ID and EBAY_CLIENT_SECRET"
+    log_error "Set a real EBAY_AUTH_TOKEN or non-placeholder EBAY_CLIENT_ID and EBAY_CLIENT_SECRET"
+    echo "❌ Set EBAY_AUTH_TOKEN or both EBAY_CLIENT_ID and EBAY_CLIENT_SECRET to real values"
     echo "Please update .env or config/environment.yml with your eBay credentials"
     exit 1
 fi
