@@ -130,6 +130,22 @@ load_env_file() {
     done < "$env_file"
 }
 
+initialize_optional_config_file() {
+    if [ -f "$CONFIG_FILE" ]; then
+        return 0
+    fi
+
+    if [ -f "$CONFIG_TEMPLATE" ]; then
+        if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
+            log_error "Failed to copy environment example"
+            exit 1
+        fi
+        initialized_config=true
+    else
+        log_message "WARN" "Optional config example not found, skipping config/environment.yml initialization"
+    fi
+}
+
 set_if_unset() {
     local var_name="$1"
     local value="$2"
@@ -377,30 +393,11 @@ if [ ! -f "$ENV_FILE" ]; then
         exit 1
     fi
     initialized_env=true
-
-    if [ ! -f "$CONFIG_FILE" ]; then
-        if [ -f "$CONFIG_TEMPLATE" ]; then
-            if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
-                log_error "Failed to copy environment example"
-                exit 1
-            fi
-            initialized_config=true
-        else
-            log_message "WARN" "Optional config example not found, skipping config/environment.yml initialization"
-        fi
-    fi
+    initialize_optional_config_file
 fi
 
 if [ "$initialized_env" != true ] && [ ! -f "$CONFIG_FILE" ]; then
-    if [ -f "$CONFIG_TEMPLATE" ]; then
-        if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
-            log_error "Failed to copy environment example"
-            exit 1
-        fi
-        initialized_config=true
-    else
-        log_message "WARN" "Optional config example not found, skipping config/environment.yml initialization"
-    fi
+    initialize_optional_config_file
 fi
 
 if [ "$initialized_env" = true ]; then
