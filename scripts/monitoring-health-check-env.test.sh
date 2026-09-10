@@ -32,3 +32,14 @@ case "$output" in
 esac
 
 echo "monitoring-health-check env-file test passed"
+
+missing_env_file="${ENV_FILE}.missing"
+if "$REPO_ROOT/scripts/monitoring-health-check.sh" --env-file "$missing_env_file" --dry-run >/tmp/monitoring-missing-env.out 2>&1; then
+    echo "Expected missing --env-file to fail" >&2
+    exit 1
+fi
+
+case "$(cat /tmp/monitoring-missing-env.out)" in
+    *"Monitoring env file not found: $missing_env_file"* ) : ;;
+    * ) echo "Expected missing env-file error message" >&2; exit 1 ;;
+esac

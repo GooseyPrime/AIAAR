@@ -86,6 +86,7 @@ strip_wrapping_quotes() {
 load_env_file() {
     local env_file="$1"
     local line
+    local assignment
     local key
     local value
 
@@ -94,15 +95,15 @@ load_env_file() {
             continue
         fi
 
-        key="${line%%=*}"
-        if [ "$key" = "$line" ]; then
+        assignment="$(trim_whitespace "$line")"
+        assignment="${assignment#export }"
+        assignment="$(trim_whitespace "$assignment")"
+        if ! [[ "$assignment" =~ ^([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=(.*)$ ]]; then
             continue
         fi
 
-        value="${line#*=}"
-        key="$(trim_whitespace "$key")"
-        key="${key#export }"
-        key="$(trim_whitespace "$key")"
+        key="${BASH_REMATCH[1]}"
+        value="${BASH_REMATCH[2]}"
         value="$(trim_whitespace "${value:-}")"
         value="$(strip_inline_comment "$value")"
         value="$(strip_wrapping_quotes "$value")"
@@ -160,7 +161,7 @@ check_make_endpoint() {
     local http_code
 
     http_code=$(curl -sS --max-time "$TIMEOUT" -o /dev/null -w "%{http_code}" "$url" || true)
-    if [ "$probe_mode" = "host-fallback" ] && [[ "$http_code" =~ ^[2-5][0-9]{2}$ ]]; then
+    if [ "$probe_mode" = "host-fallback" ] && [[ "$http_code" =~ ^[2-4][0-9]{2}$ ]]; then
         echo "✅ Make.com host reachable ($http_code)"
         log_message "INFO" "Make.com host reachable with HTTP $http_code"
         return 0
@@ -205,6 +206,7 @@ check_airtable_endpoint() {
 
 main() {
     local env_file_path="${MONITORING_ENV_FILE:-$DEFAULT_ENV_FILE}"
+    local env_file_explicit=false
     local make_url
     local make_probe_mode
     local airtable_table
@@ -212,6 +214,10 @@ main() {
     local airtable_table_encoded
     local airtable_url
     local airtable_url_preview
+
+    if [ -n "${MONITORING_ENV_FILE:-}" ]; then
+        env_file_explicit=true
+    fi
 
     while [ "$#" -gt 0 ]; do
         case "$1" in
@@ -225,6 +231,7 @@ main() {
                     exit 1
                 fi
                 env_file_path="$2"
+                env_file_explicit=true
                 shift 2
                 ;;
             --timeout)
@@ -253,6 +260,10 @@ main() {
 
     if [ -f "$env_file_path" ]; then
         load_env_file "$env_file_path"
+    elif [ "$env_file_explicit" = true ]; then
+        log_error "Monitoring env file not found: $env_file_path"
+        echo "❌ Monitoring env file not found: $env_file_path" >&2
+        exit 1
     fi
 
     make_url="${MAKE_HEALTHCHECK_URL:-${MAKE_WEBHOOK_BASE_URL:-https://hook.make.com}}"

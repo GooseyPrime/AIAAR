@@ -48,9 +48,12 @@ test_make_host_fallback_accepts_redirect() {
 
 test_make_host_fallback_accepts_server_error_response() {
     local output
-    MOCK_CURL_HTTP_CODE="500"
+    MOCK_CURL_HTTP_CODE="404"
     output="$(check_make_endpoint "https://hook.make.com" "host-fallback")"
-    assert_contains "$output" "Make.com host reachable (500)"
+    assert_contains "$output" "Make.com host reachable (404)"
+
+    MOCK_CURL_HTTP_CODE="500"
+    assert_failure check_make_endpoint "https://hook.make.com" "host-fallback"
 }
 
 test_make_explicit_endpoint_requires_200() {
@@ -85,9 +88,9 @@ test_env_loader_accepts_export_and_ignores_unlisted_keys() {
     trap 'rm -f "$env_file"' RETURN
 
     cat > "$env_file" <<'EOF'
-export AIRTABLE_API_KEY=test-key
-export PATH=/not/used
-MAKE_WEBHOOK_BASE_URL=https://hook.make.com
+export AIRTABLE_API_KEY = test-key
+export PATH = /not/used
+MAKE_WEBHOOK_BASE_URL = https://hook.make.com
 EOF
 
     unset AIRTABLE_API_KEY MAKE_WEBHOOK_BASE_URL
