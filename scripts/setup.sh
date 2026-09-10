@@ -377,19 +377,19 @@ if [ ! -f "$ENV_FILE" ]; then
         exit 1
     fi
     initialized_env=true
-fi
 
-if [ ! -f "$CONFIG_FILE" ]; then
-    if [ ! -f "$CONFIG_TEMPLATE" ]; then
-        log_error "Missing required example file: $CONFIG_TEMPLATE"
-        echo "❌ Missing required example file: config/environment.example.yml" >&2
-        exit 1
+    if [ ! -f "$CONFIG_FILE" ]; then
+        if [ ! -f "$CONFIG_TEMPLATE" ]; then
+            log_error "Missing required example file: $CONFIG_TEMPLATE"
+            echo "❌ Missing required example file: config/environment.example.yml" >&2
+            exit 1
+        fi
+        if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
+            log_error "Failed to copy environment example"
+            exit 1
+        fi
+        initialized_config=true
     fi
-    if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
-        log_error "Failed to copy environment example"
-        exit 1
-    fi
-    initialized_config=true
 fi
 
 if [ "$initialized_env" = true ] || [ "$initialized_config" = true ]; then
@@ -399,12 +399,10 @@ if [ "$initialized_env" = true ] || [ "$initialized_config" = true ]; then
     [ "$initialized_config" = true ] && echo "   - config/environment.yml from config/environment.example.yml"
     if [ "$initialized_env" = true ] && [ "$initialized_config" = true ]; then
         echo "⚠️  Review .env for real API keys and config/environment.yml for local overrides before rerunning live setup."
+        exit 1
     elif [ "$initialized_env" = true ]; then
-        echo "⚠️  Review and replace placeholder API keys in .env before rerunning live setup."
-    else
-        echo "⚠️  Review config/environment.yml before rerunning live setup."
+        echo "ℹ️  Continuing with values already loaded from config/environment.yml for this run."
     fi
-    exit 1
 fi
 
 log_message "INFO" "Verifying required environment variables"
