@@ -48,7 +48,6 @@ email:
 # Make.com Configuration
 make:
   webhook_base_url: "https://hook.make.com"
-  team_id: "YOUR_TEAM_ID"
 
 # Safety Settings
 safety:
