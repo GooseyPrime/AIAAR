@@ -392,12 +392,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
     initialized_config=true
 fi
 
-if [ "$initialized_env" = true ] && [ "$initialized_config" != true ]; then
-    load_env_file "$ENV_FILE"
-fi
-
-if { [ "$initialized_env" = true ] || [ "$initialized_config" = true ]; } && \
-   ! { [ "$initialized_env" = true ] && [ "$initialized_config" = true ]; }; then
+if [ "$initialized_config" = true ] && [ "$initialized_env" != true ]; then
     if [ -f "$CONFIG_FILE" ]; then
         populate_from_config
     fi
@@ -412,7 +407,8 @@ if [ "$initialized_env" = true ] || [ "$initialized_config" = true ]; then
         echo "⚠️  Review .env for real API keys and config/environment.yml for local overrides before rerunning live setup."
         exit 1
     elif [ "$initialized_env" = true ]; then
-        echo "ℹ️  Continuing with values already loaded from config/environment.yml for this run."
+        echo "⚠️  Review and replace placeholder API keys in .env before rerunning live setup."
+        exit 1
     elif [ "$initialized_config" = true ]; then
         echo "ℹ️  Continuing with values already loaded from .env for this run."
     fi
