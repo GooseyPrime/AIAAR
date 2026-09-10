@@ -49,6 +49,12 @@ for scenario_file in scenario_files:
         sys.exit(1)
 
     for webhook in content.get("webhooks", []) or []:
+        if not isinstance(webhook, dict):
+            print(
+                f"❌ Scenario {scenario_file.name} contains a webhook entry that is not a JSON object",
+                file=sys.stderr,
+            )
+            sys.exit(1)
         url = webhook.get("url")
         if not isinstance(url, str) or not url.strip():
             print(f"❌ Scenario {scenario_file.name} contains a webhook without a URL", file=sys.stderr)
