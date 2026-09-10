@@ -130,6 +130,19 @@ test_timeout_argument_validation() {
     set -e
     [ "$status" -ne 0 ]
     assert_contains "$output" "--timeout must be a positive integer number of seconds."
+
+    set +e
+    output="$("$REPO_ROOT/scripts/monitoring-health-check.sh" --timeout 00 2>&1)"
+    status=$?
+    set -e
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "--timeout must be a positive integer number of seconds."
+}
+
+test_airtable_base_id_validation() {
+    assert_success is_valid_airtable_base_id "app123ABC"
+    assert_failure is_valid_airtable_base_id "<base-id-redacted>"
+    assert_failure is_valid_airtable_base_id "base123"
 }
 
 test_make_host_fallback_accepts_redirect
@@ -139,5 +152,6 @@ test_airtable_status_branches
 test_env_loader_accepts_export_and_ignores_unlisted_keys
 test_env_loader_preserves_hash_inside_quotes
 test_timeout_argument_validation
+test_airtable_base_id_validation
 
 echo "monitoring-health-check tests passed"

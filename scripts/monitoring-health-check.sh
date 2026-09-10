@@ -130,13 +130,17 @@ EOF
 
 is_placeholder_value() {
     case "${1:-}" in
-        ""|YOUR_*)
+        ""|YOUR_*|"<"*">"|*REDACTED*|*redacted*|CHANGEME|changeme)
             return 0
             ;;
         *)
             return 1
             ;;
     esac
+}
+
+is_valid_airtable_base_id() {
+    [[ "${1:-}" =~ ^app[[:alnum:]]+$ ]]
 }
 
 url_encode() {
@@ -240,7 +244,7 @@ main() {
                     usage
                     exit 1
                 fi
-                if ! [[ "$2" =~ ^[0-9]+$ ]] || [ "$2" -le 0 ]; then
+                if ! [[ "$2" =~ ^[1-9][0-9]*$ ]]; then
                     echo "❌ --timeout must be a positive integer number of seconds." >&2
                     exit 1
                 fi
@@ -299,6 +303,12 @@ main() {
     if is_placeholder_value "${AIRTABLE_API_KEY:-}" || is_placeholder_value "${AIRTABLE_BASE_ID:-}"; then
         log_error "AIRTABLE_API_KEY and AIRTABLE_BASE_ID must be set before running live checks"
         echo "❌ Set AIRTABLE_API_KEY and AIRTABLE_BASE_ID in .env or the current shell." >&2
+        exit 1
+    fi
+
+    if ! is_valid_airtable_base_id "${AIRTABLE_BASE_ID:-}"; then
+        log_error "AIRTABLE_BASE_ID must look like a real Airtable base ID (for example, app...)"
+        echo "❌ AIRTABLE_BASE_ID must look like a real Airtable base ID (for example, app...)." >&2
         exit 1
     fi
 
