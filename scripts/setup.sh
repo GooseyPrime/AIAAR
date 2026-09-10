@@ -392,11 +392,12 @@ if [ ! -f "$CONFIG_FILE" ]; then
     initialized_config=true
 fi
 
-if [ "$initialized_env" = true ]; then
+if [ "$initialized_env" = true ] && [ "$initialized_config" != true ]; then
     load_env_file "$ENV_FILE"
 fi
 
-if [ "$initialized_env" = true ] || [ "$initialized_config" = true ]; then
+if { [ "$initialized_env" = true ] || [ "$initialized_config" = true ]; } && \
+   ! { [ "$initialized_env" = true ] && [ "$initialized_config" = true ]; }; then
     if [ -f "$CONFIG_FILE" ]; then
         populate_from_config
     fi

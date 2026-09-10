@@ -20,7 +20,7 @@ ENV/
 .env.development.local
 .env.test.local
 .env.production.local
-/config/environment.yml
+config/environment.yml
 
 # IDE and editor files
 .vscode/
