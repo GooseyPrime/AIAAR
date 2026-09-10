@@ -10,6 +10,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONFIG_FILE="$REPO_ROOT/config/environment.yml"
 CONFIG_TEMPLATE="$REPO_ROOT/config/environment.example.yml"
 ENV_FILE="$REPO_ROOT/.env"
+ENV_TEMPLATE="$REPO_ROOT/.env.example"
 LOG_DIR="$REPO_ROOT/logs"
 LOG_FILE="$LOG_DIR/setup.log"
 ERROR_LOG="$LOG_DIR/setup_errors.log"
@@ -364,11 +365,17 @@ log_message "INFO" "All required dependencies found"
 if [ ! -f "$CONFIG_FILE" ] && [ ! -f "$ENV_FILE" ]; then
     log_message "WARN" "Configuration files not found, creating example configuration"
     echo "📝 Creating environment configuration..."
+    if ! cp "$ENV_TEMPLATE" "$ENV_FILE"; then
+        log_error "Failed to copy .env example"
+        exit 1
+    fi
     if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
         log_error "Failed to copy environment example"
         exit 1
     fi
-    echo "✅ Local environment configuration created at config/environment.yml from config/environment.example.yml"
+    echo "✅ Local environment files created:"
+    echo "   - .env from .env.example"
+    echo "   - config/environment.yml from config/environment.example.yml"
     echo "⚠️  Please add API keys to .env before continuing. Use config/environment.yml only for local non-secret overrides when possible."
     exit 1
 fi
