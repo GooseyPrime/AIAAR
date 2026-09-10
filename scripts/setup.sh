@@ -380,26 +380,22 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 
 if [ ! -f "$CONFIG_FILE" ]; then
-    if [ ! -f "$CONFIG_TEMPLATE" ]; then
-        log_error "Missing required example file: $CONFIG_TEMPLATE"
-        echo "❌ Missing required example file: config/environment.example.yml" >&2
-        exit 1
-    fi
-    if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
-        log_error "Failed to copy environment example"
-        exit 1
-    fi
-    initialized_config=true
-fi
-
-if [ "$initialized_config" = true ]; then
-    if [ -f "$CONFIG_FILE" ]; then
-        populate_from_config
+    if [ -f "$CONFIG_TEMPLATE" ]; then
+        if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
+            log_error "Failed to copy environment example"
+            exit 1
+        fi
+        initialized_config=true
+    else
+        log_message "WARN" "Optional config example not found, skipping config/environment.yml initialization"
     fi
 fi
 
 if [ "$initialized_env" = true ] || [ "$initialized_config" = true ]; then
     log_message "WARN" "Initialized missing local configuration files from examples"
+    if [ "$initialized_env" = true ]; then
+        load_env_file "$ENV_FILE"
+    fi
     echo "✅ Local environment files created:"
     [ "$initialized_env" = true ] && echo "   - .env from .env.example"
     [ "$initialized_config" = true ] && echo "   - config/environment.yml from config/environment.example.yml"
