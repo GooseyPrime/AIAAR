@@ -137,7 +137,7 @@ For schedulers or separate production config files, point the script at an expli
 What it checks:
 
 - Make.com endpoint reachability using `MAKE_HEALTHCHECK_URL`, or host-level reachability using `MAKE_WEBHOOK_BASE_URL` when no full endpoint probe is configured
-- Airtable table-read success against a designated existing table using `AIRTABLE_API_KEY`, `AIRTABLE_BASE_ID`, `AIRTABLE_HEALTHCHECK_TABLE` (defaults to `Target Items`), and an optional `AIRTABLE_API_BASE_URL` override, which also surfaces auth/permission problems separately from missing-table problems
+- Airtable table-read success against a designated existing table using `AIRTABLE_API_KEY`, `AIRTABLE_BASE_ID`, `AIRTABLE_HEALTHCHECK_TABLE` (defaults to `Target Items`), and an optional `AIRTABLE_API_BASE_URL` prefix override before the base ID, which also surfaces auth/permission problems separately from missing-table problems
 
 What it does **not** check:
 
@@ -146,7 +146,7 @@ What it does **not** check:
 - end-to-end order/bid lifecycle completion
 
 `AIRTABLE_HEALTHCHECK_TABLE` should point to a table that exists in every production environment. If your base does not include `Target Items`, override the value in `.env` before scheduling live checks.
-`AIRTABLE_API_BASE_URL` is optional and defaults to `https://api.airtable.com/v0`.
+`AIRTABLE_API_BASE_URL` is optional and defaults to `https://api.airtable.com/v0`. It should be the URL prefix before the base ID, not a full endpoint that already includes the base ID or table path.
 `MAKE_WEBHOOK_BASE_URL` is only a host-level fallback probe. It treats any completed 2xx-4xx HTTP response as proof that the host is reachable, not that a specific scenario path is healthy. Set `MAKE_HEALTHCHECK_URL` if you want the script to validate a specific production Make.com endpoint path.
 
 ## Suggested scheduling

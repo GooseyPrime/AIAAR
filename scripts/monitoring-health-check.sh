@@ -99,7 +99,8 @@ load_env_file() {
         assignment="${assignment#export }"
         assignment="$(trim_whitespace "$assignment")"
         if ! [[ "$assignment" =~ ^([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=(.*)$ ]]; then
-            continue
+            log_error "Invalid environment assignment in $env_file: $line"
+            exit 1
         fi
 
         key="${BASH_REMATCH[1]}"

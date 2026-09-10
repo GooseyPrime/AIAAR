@@ -117,11 +117,27 @@ EOF
     [ "${MAKE_HEALTHCHECK_URL}" = "https://hook.make.com/path#fragment" ]
 }
 
+test_timeout_argument_validation() {
+    local output
+    local status
+
+    output="$("$REPO_ROOT/scripts/monitoring-health-check.sh" --dry-run --timeout 7)"
+    assert_contains "$output" "Timeout: 7s"
+
+    set +e
+    output="$("$REPO_ROOT/scripts/monitoring-health-check.sh" --timeout nope 2>&1)"
+    status=$?
+    set -e
+    [ "$status" -ne 0 ]
+    assert_contains "$output" "--timeout must be a positive integer number of seconds."
+}
+
 test_make_host_fallback_accepts_redirect
 test_make_host_fallback_accepts_server_error_response
 test_make_explicit_endpoint_requires_200
 test_airtable_status_branches
 test_env_loader_accepts_export_and_ignores_unlisted_keys
 test_env_loader_preserves_hash_inside_quotes
+test_timeout_argument_validation
 
 echo "monitoring-health-check tests passed"
