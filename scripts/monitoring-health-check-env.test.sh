@@ -9,7 +9,7 @@ trap 'rm -f "$ENV_FILE"' EXIT
 
 cat > "$ENV_FILE" <<'EOF'
 export AIRTABLE_API_KEY="test-key"
-export AIRTABLE_BASE_ID="appEnvFileBase"
+export AIRTABLE_BASE_ID="app1234567890ABCD"
 export AIRTABLE_HEALTHCHECK_TABLE="Env File Table"
 export MAKE_HEALTHCHECK_URL="https://hook.make.com/env-file"
 EOF
@@ -42,4 +42,25 @@ fi
 case "$(cat /tmp/monitoring-missing-env.out)" in
     *"Monitoring env file not found: $missing_env_file"* ) : ;;
     * ) echo "Expected missing env-file error message" >&2; exit 1 ;;
+esac
+
+source "$REPO_ROOT/scripts/monitoring-health-check.sh"
+
+LOG_FILE="/tmp/monitoring-health-check-env-test.log"
+ERROR_LOG="/tmp/monitoring-health-check-env-test-errors.log"
+
+curl() {
+    printf '%s' "200"
+}
+
+live_output="$(MONITORING_ENV_FILE="$ENV_FILE" main --env-file "$ENV_FILE")"
+
+case "$live_output" in
+    *"Make.com endpoint reachable (200)"* ) : ;;
+    * ) echo "Expected live env-file path to exercise Make.com success" >&2; exit 1 ;;
+esac
+
+case "$live_output" in
+    *"Airtable table read succeeded (200)"* ) : ;;
+    * ) echo "Expected live env-file path to exercise Airtable success" >&2; exit 1 ;;
 esac

@@ -46,7 +46,7 @@ test_make_host_fallback_accepts_redirect() {
     assert_contains "$output" "Make.com host reachable (302)"
 }
 
-test_make_host_fallback_accepts_server_error_response() {
+test_make_host_fallback_accepts_redirect_and_rejects_error_responses() {
     local output
     MOCK_CURL_HTTP_CODE="301"
     output="$(check_make_endpoint "https://hook.make.com" "host-fallback")"
@@ -150,7 +150,7 @@ test_airtable_base_id_validation() {
 }
 
 test_make_host_fallback_accepts_redirect
-test_make_host_fallback_accepts_server_error_response
+test_make_host_fallback_accepts_redirect_and_rejects_error_responses
 test_make_explicit_endpoint_requires_200
 test_airtable_status_branches
 test_env_loader_accepts_export_and_ignores_unlisted_keys
