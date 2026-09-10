@@ -367,6 +367,11 @@ initialized_config=false
 
 if [ ! -f "$ENV_FILE" ]; then
     echo "📝 Creating environment configuration..."
+    if [ ! -f "$ENV_TEMPLATE" ]; then
+        log_error "Missing required example file: $ENV_TEMPLATE"
+        echo "❌ Missing required example file: .env.example" >&2
+        exit 1
+    fi
     if ! cp "$ENV_TEMPLATE" "$ENV_FILE"; then
         log_error "Failed to copy .env example"
         exit 1
@@ -375,6 +380,11 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 
 if [ ! -f "$CONFIG_FILE" ]; then
+    if [ ! -f "$CONFIG_TEMPLATE" ]; then
+        log_error "Missing required example file: $CONFIG_TEMPLATE"
+        echo "❌ Missing required example file: config/environment.example.yml" >&2
+        exit 1
+    fi
     if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
         log_error "Failed to copy environment example"
         exit 1
