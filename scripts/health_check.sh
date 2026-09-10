@@ -13,9 +13,8 @@ echo "• Verifying setup dry run"
 "$SCRIPT_DIR/setup.sh" --dry-run
 
 if [ ! -d "$SCENARIO_DIR" ]; then
-    echo "ℹ️ No Make.com scenario directory found at $SCENARIO_DIR; skipping scenario validation"
-    echo "✅ Health check completed successfully"
-    exit 0
+    echo "❌ Missing Make.com scenario directory: $SCENARIO_DIR" >&2
+    exit 1
 fi
 
 if ! command -v python3 >/dev/null 2>&1; then
@@ -34,8 +33,8 @@ scenario_dir = Path(sys.argv[1])
 scenario_files = sorted(path for path in scenario_dir.glob("*.json") if path.is_file())
 
 if not scenario_files:
-    print(f"ℹ️ No Make.com scenario definitions found in {scenario_dir}; skipping scenario validation")
-    sys.exit(0)
+    print(f"❌ No Make.com scenario definitions found in {scenario_dir}", file=sys.stderr)
+    sys.exit(1)
 
 registered_webhooks = []
 
