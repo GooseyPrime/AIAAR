@@ -215,7 +215,7 @@ check_make_endpoint() {
     local url="$1"
     local http_code
 
-    http_code=$(curl -sS -L --max-time "$TIMEOUT" -o /dev/null -w "%{http_code}" "$url" || true)
+    http_code=$(curl -sS --max-time "$TIMEOUT" -o /dev/null -w "%{http_code}" "$url" || true)
     if [[ "$http_code" =~ ^(200|301|302|307|308)$ ]]; then
         echo "✅ Make.com endpoint reachable ($http_code)"
         log_message "INFO" "Make.com endpoint reachable with HTTP $http_code"
