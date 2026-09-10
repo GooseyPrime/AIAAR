@@ -392,7 +392,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
     initialized_config=true
 fi
 
-if [ "$initialized_config" = true ] && [ "$initialized_env" != true ]; then
+if [ "$initialized_config" = true ]; then
     if [ -f "$CONFIG_FILE" ]; then
         populate_from_config
     fi
