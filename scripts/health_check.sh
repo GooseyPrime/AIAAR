@@ -35,7 +35,8 @@ if not scenario_files:
     print(f"❌ No Make.com scenario definitions found in {scenario_dir}", file=sys.stderr)
     sys.exit(1)
 
-webhook_urls = []
+trigger_hooks = []
+registered_webhooks = []
 
 for scenario_file in scenario_files:
     try:
@@ -48,7 +49,52 @@ for scenario_file in scenario_files:
         print(f"❌ Scenario {scenario_file.name} must contain a JSON object", file=sys.stderr)
         sys.exit(1)
 
-    for webhook in content.get("webhooks", []) or []:
+    scenario = content.get("scenario")
+    if scenario is not None:
+        if not isinstance(scenario, dict):
+            print(f"❌ Scenario {scenario_file.name} has a non-object `scenario` section", file=sys.stderr)
+            sys.exit(1)
+
+        modules = scenario.get("modules", [])
+        if modules is None:
+            modules = []
+        if not isinstance(modules, list):
+            print(f"❌ Scenario {scenario_file.name} has a non-list `scenario.modules` section", file=sys.stderr)
+            sys.exit(1)
+
+        for module in modules:
+            if not isinstance(module, dict):
+                print(f"❌ Scenario {scenario_file.name} contains a module entry that is not a JSON object", file=sys.stderr)
+                sys.exit(1)
+
+            if module.get("module") != "gateway:WebhookTrigger":
+                continue
+
+            parameters = module.get("parameters", {})
+            if not isinstance(parameters, dict):
+                print(
+                    f"❌ Scenario {scenario_file.name} has a webhook trigger with non-object parameters",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+
+            hook = parameters.get("hook")
+            if not isinstance(hook, str) or not hook.strip():
+                print(
+                    f"❌ Scenario {scenario_file.name} has a webhook trigger without a hook URL",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            trigger_hooks.append((scenario_file.name, hook.strip()))
+
+    webhooks = content.get("webhooks", [])
+    if webhooks is None:
+        webhooks = []
+    if not isinstance(webhooks, list):
+        print(f"❌ Scenario {scenario_file.name} has a non-list `webhooks` section", file=sys.stderr)
+        sys.exit(1)
+
+    for webhook in webhooks:
         if not isinstance(webhook, dict):
             print(
                 f"❌ Scenario {scenario_file.name} contains a webhook entry that is not a JSON object",
@@ -59,23 +105,25 @@ for scenario_file in scenario_files:
         if not isinstance(url, str) or not url.strip():
             print(f"❌ Scenario {scenario_file.name} contains a webhook without a URL", file=sys.stderr)
             sys.exit(1)
-        webhook_urls.append((scenario_file.name, url.strip()))
+        registered_webhooks.append((scenario_file.name, url.strip()))
 
-if not webhook_urls:
-    print("❌ No Make.com webhook URLs were found in the scenario definitions", file=sys.stderr)
+make_urls = trigger_hooks + registered_webhooks
+
+if not make_urls:
+    print("❌ No Make.com webhook connectivity definitions were found in the scenario files", file=sys.stderr)
     sys.exit(1)
 
 invalid_urls = [
     (name, url)
-    for name, url in webhook_urls
-    if not url.startswith("{{config.make.webhook_base_url}}/")
+    for name, url in make_urls
+    if "config.make.webhook_base_url" not in url
 ]
 
 if invalid_urls:
     for name, url in invalid_urls:
         print(
-            f"❌ Scenario {name} has a webhook URL that does not use "
-            f"{{{{config.make.webhook_base_url}}}}/: {url}",
+            f"❌ Scenario {name} has a Make.com webhook definition that does not reference "
+            f"config.make.webhook_base_url: {url}",
             file=sys.stderr,
         )
     sys.exit(1)
@@ -83,8 +131,9 @@ if invalid_urls:
 print(f"✅ Validated {len(scenario_files)} scenario file(s)")
 print(
     "✅ Found "
-    f"{len(webhook_urls)} Make.com webhook URL(s) using "
-    "{{config.make.webhook_base_url}}"
+    f"{len(trigger_hooks)} webhook trigger(s) and {len(registered_webhooks)} "
+    "registered webhook definition(s) referencing "
+    "config.make.webhook_base_url"
 )
 PY
 
