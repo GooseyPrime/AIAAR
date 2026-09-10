@@ -204,7 +204,7 @@ Test each scenario individually:
 ### 7.2 Monitoring Setup
 
 1. Enable all scenarios
-2. Set up monitoring dashboards using `/monitoring/README.md`
+2. Set up monitoring dashboards using `monitoring/README.md`
 3. Configure alert thresholds
 4. Schedule regular reviews
 

@@ -215,8 +215,8 @@ check_make_endpoint() {
     local url="$1"
     local http_code
 
-    http_code=$(curl -I -sS -L --max-time "$TIMEOUT" -o /dev/null -w "%{http_code}" "$url" || true)
-    if [[ "$http_code" =~ ^(200|301|302|307|308|405)$ ]]; then
+    http_code=$(curl -sS -L --max-time "$TIMEOUT" -o /dev/null -w "%{http_code}" "$url" || true)
+    if [[ "$http_code" =~ ^(200|301|302|307|308)$ ]]; then
         echo "✅ Make.com endpoint reachable ($http_code)"
         log_message "INFO" "Make.com endpoint reachable with HTTP $http_code"
         return 0
@@ -282,6 +282,7 @@ make_url="${MAKE_WEBHOOK_BASE_URL:-https://hook.make.com}"
 airtable_table="${AIRTABLE_HEALTHCHECK_TABLE:-Target Items}"
 airtable_table_encoded="$(url_encode "$airtable_table")"
 airtable_url="https://api.airtable.com/v0/${AIRTABLE_BASE_ID:-YOUR_AIRTABLE_BASE_ID}/${airtable_table_encoded}?maxRecords=1"
+airtable_url_preview="https://api.airtable.com/v0/<base-id-redacted>/${airtable_table_encoded}?maxRecords=1"
 
 echo "📡 AIAAR production monitoring health check"
 echo "=========================================="
@@ -289,7 +290,7 @@ echo "=========================================="
 if [ "$DRY_RUN" = true ]; then
     echo "🧪 Dry run only - no live API calls will be made."
     echo "Would probe Make.com endpoint: $make_url"
-    echo "Would probe Airtable endpoint: $airtable_url"
+    echo "Would probe Airtable endpoint: $airtable_url_preview"
     echo "Airtable probe table: $airtable_table"
     echo "Timeout: ${TIMEOUT}s"
     exit 0
