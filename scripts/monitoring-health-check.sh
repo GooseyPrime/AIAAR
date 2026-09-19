@@ -6,8 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DEFAULT_ENV_FILE="$REPO_ROOT/.env"
 LOG_DIR="$REPO_ROOT/logs"
-LOG_FILE="$LOG_DIR/monitoring-health-check.log"
-ERROR_LOG="$LOG_DIR/monitoring-health-check_errors.log"
+LOG_FILE="${LOG_FILE:-$LOG_DIR/monitoring-health-check.log}"
+ERROR_LOG="${ERROR_LOG:-$LOG_DIR/monitoring-health-check_errors.log}"
 DRY_RUN=false
 TIMEOUT=10
 

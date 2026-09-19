@@ -169,6 +169,27 @@ EOF
     [ "${MAKE_WEBHOOK_BASE_URL}" = "https://hook.make.com/shell" ]
 }
 
+test_env_loader_ignores_cli_control_keys() {
+    local env_file
+    env_file="$(mktemp)"
+    trap 'rm -f "$env_file"' RETURN
+
+    cat > "$env_file" <<'EOF'
+DRY_RUN=false
+TIMEOUT=999
+MAKE_HEALTHCHECK_URL=https://hook.make.com/health
+EOF
+
+    unset MAKE_HEALTHCHECK_URL
+    DRY_RUN=true
+    TIMEOUT=7
+    load_env_file "$env_file"
+
+    [ "$DRY_RUN" = true ]
+    [ "$TIMEOUT" = "7" ]
+    [ "${MAKE_HEALTHCHECK_URL}" = "https://hook.make.com/health" ]
+}
+
 test_timeout_argument_validation() {
     local output
     local status
@@ -198,6 +219,13 @@ test_airtable_base_id_validation() {
     assert_failure is_valid_airtable_base_id "base123"
 }
 
+test_url_encode_uses_utf8_bytes() {
+    local encoded
+
+    encoded="$(url_encode "Café ☕")"
+    [ "$encoded" = "Caf%C3%A9%20%E2%98%95" ]
+}
+
 test_make_host_fallback_accepts_redirect
 test_make_host_fallback_accepts_non_5xx_and_rejects_5xx
 test_make_explicit_endpoint_requires_200
@@ -206,7 +234,9 @@ test_airtable_status_branches
 test_env_loader_accepts_export_and_ignores_unlisted_keys
 test_env_loader_preserves_hash_inside_quotes
 test_env_loader_preserves_existing_environment_values
+test_env_loader_ignores_cli_control_keys
 test_timeout_argument_validation
 test_airtable_base_id_validation
+test_url_encode_uses_utf8_bytes
 
 echo "monitoring-health-check tests passed"
