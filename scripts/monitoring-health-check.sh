@@ -170,13 +170,27 @@ url_encode() {
     printf '%s\n' "$encoded"
 }
 
+redact_url_for_display() {
+    local url="${1:-}"
+
+    if [[ "$url" =~ ^([A-Za-z][A-Za-z0-9+.-]*://[^/?#]+) ]]; then
+        printf '%s\n' "${BASH_REMATCH[1]}"
+        return 0
+    fi
+
+    printf '%s\n' "<redacted-url>"
+}
+
 check_make_endpoint() {
     local url="$1"
     local probe_mode="$2"
     local http_code
+    local url_preview
+
+    url_preview="$(redact_url_for_display "$url")"
 
     http_code=$(curl -sS --max-time "$TIMEOUT" -o /dev/null -w "%{http_code}" "$url" || true)
-    if [ "$probe_mode" = "host-fallback" ] && [[ "$http_code" =~ ^(2[0-9]{2}|301|302|307|308)$ ]]; then
+    if [ "$probe_mode" = "host-fallback" ] && [ "$http_code" != "000" ] && ! [[ "$http_code" =~ ^5[0-9]{2}$ ]]; then
         echo "✅ Make.com host reachable ($http_code)"
         log_message "INFO" "Make.com host reachable with HTTP $http_code"
         return 0
@@ -188,7 +202,7 @@ check_make_endpoint() {
         return 0
     fi
 
-    log_error "Make.com endpoint check failed for $url with HTTP ${http_code:-000}"
+    log_error "Make.com endpoint check failed for $url_preview with HTTP ${http_code:-000}"
     return 1
 }
 
@@ -229,6 +243,7 @@ main() {
     local airtable_table_encoded
     local airtable_url
     local airtable_url_preview
+    local make_url_preview
 
     if [ -n "${MONITORING_ENV_FILE:-}" ]; then
         env_file_explicit=true
@@ -285,6 +300,7 @@ main() {
     if [ -n "${MAKE_HEALTHCHECK_URL:-}" ]; then
         make_probe_mode="explicit-endpoint"
     fi
+    make_url_preview="$(redact_url_for_display "$make_url")"
     airtable_table="${AIRTABLE_HEALTHCHECK_TABLE:-Target Items}"
     airtable_api_base_url="${AIRTABLE_API_BASE_URL:-https://api.airtable.com/v0}"
     airtable_table_encoded="$(url_encode "$airtable_table")"
@@ -296,7 +312,7 @@ main() {
 
     if [ "$DRY_RUN" = true ]; then
         echo "🧪 Dry run only - no live API calls will be made."
-        echo "Would probe Make.com endpoint: $make_url"
+        echo "Would probe Make.com endpoint: $make_url_preview"
         if [ -z "${MAKE_HEALTHCHECK_URL:-}" ]; then
             echo "Make.com probe mode: host-level fallback via MAKE_WEBHOOK_BASE_URL"
         else

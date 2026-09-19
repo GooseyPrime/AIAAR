@@ -35,6 +35,17 @@ assert_contains() {
     fi
 }
 
+assert_not_contains() {
+    local haystack="$1"
+    local needle="$2"
+
+    if [[ "$haystack" == *"$needle"* ]]; then
+        echo "Expected output to not contain: $needle" >&2
+        echo "Actual output: $haystack" >&2
+        exit 1
+    fi
+}
+
 curl() {
     printf '%s' "${MOCK_CURL_HTTP_CODE:?}"
 }
@@ -46,7 +57,7 @@ test_make_host_fallback_accepts_redirect() {
     assert_contains "$output" "Make.com host reachable (302)"
 }
 
-test_make_host_fallback_accepts_redirect_and_rejects_error_responses() {
+test_make_host_fallback_accepts_non_5xx_and_rejects_5xx() {
     local output
     MOCK_CURL_HTTP_CODE="204"
     output="$(check_make_endpoint "https://hook.make.com" "host-fallback")"
@@ -57,10 +68,12 @@ test_make_host_fallback_accepts_redirect_and_rejects_error_responses() {
     assert_contains "$output" "Make.com host reachable (301)"
 
     MOCK_CURL_HTTP_CODE="304"
-    assert_failure check_make_endpoint "https://hook.make.com" "host-fallback"
+    output="$(check_make_endpoint "https://hook.make.com" "host-fallback")"
+    assert_contains "$output" "Make.com host reachable (304)"
 
     MOCK_CURL_HTTP_CODE="404"
-    assert_failure check_make_endpoint "https://hook.make.com" "host-fallback"
+    output="$(check_make_endpoint "https://hook.make.com" "host-fallback")"
+    assert_contains "$output" "Make.com host reachable (404)"
 
     MOCK_CURL_HTTP_CODE="500"
     assert_failure check_make_endpoint "https://hook.make.com" "host-fallback"
@@ -74,6 +87,17 @@ test_make_explicit_endpoint_requires_200() {
 
     MOCK_CURL_HTTP_CODE="302"
     assert_failure check_make_endpoint "https://hook.make.com/endpoint" "explicit-endpoint"
+}
+
+test_make_endpoint_failure_redacts_logged_url() {
+    local log_output
+
+    : > "$ERROR_LOG"
+    MOCK_CURL_HTTP_CODE="000"
+    assert_failure check_make_endpoint "https://hook.make.com/secret/token" "explicit-endpoint"
+    log_output="$(cat "$ERROR_LOG")"
+    assert_contains "$log_output" "https://hook.make.com"
+    assert_not_contains "$log_output" "/secret/token"
 }
 
 test_airtable_status_branches() {
@@ -175,8 +199,9 @@ test_airtable_base_id_validation() {
 }
 
 test_make_host_fallback_accepts_redirect
-test_make_host_fallback_accepts_redirect_and_rejects_error_responses
+test_make_host_fallback_accepts_non_5xx_and_rejects_5xx
 test_make_explicit_endpoint_requires_200
+test_make_endpoint_failure_redacts_logged_url
 test_airtable_status_branches
 test_env_loader_accepts_export_and_ignores_unlisted_keys
 test_env_loader_preserves_hash_inside_quotes

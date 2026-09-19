@@ -11,14 +11,19 @@ cat > "$ENV_FILE" <<'EOF'
 export AIRTABLE_API_KEY="test-key"
 export AIRTABLE_BASE_ID="app1234567890ABCD"
 export AIRTABLE_HEALTHCHECK_TABLE="Env File Table"
-export MAKE_HEALTHCHECK_URL="https://hook.make.com/env-file"
+export MAKE_HEALTHCHECK_URL="https://hook.make.com/env-file/token"
 EOF
 
 output="$("$REPO_ROOT/scripts/monitoring-health-check.sh" --env-file "$ENV_FILE" --dry-run)"
 
 case "$output" in
-    *"Would probe Make.com endpoint: https://hook.make.com/env-file"* ) : ;;
-    * ) echo "Expected env-file override to set MAKE_HEALTHCHECK_URL" >&2; exit 1 ;;
+    *"Would probe Make.com endpoint: https://hook.make.com"* ) : ;;
+    * ) echo "Expected dry-run output to redact MAKE_HEALTHCHECK_URL to scheme and host" >&2; exit 1 ;;
+esac
+
+case "$output" in
+    *"/env-file/token"* ) echo "Expected dry-run output to redact the MAKE_HEALTHCHECK_URL path" >&2; exit 1 ;;
+    * ) : ;;
 esac
 
 case "$output" in
