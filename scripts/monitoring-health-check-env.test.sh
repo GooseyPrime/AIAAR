@@ -49,10 +49,10 @@ case "$(cat /tmp/monitoring-missing-env.out)" in
     * ) echo "Expected missing env-file error message" >&2; exit 1 ;;
 esac
 
-source "$REPO_ROOT/scripts/monitoring-health-check.sh"
-
 LOG_FILE="/tmp/monitoring-health-check-env-test.log"
 ERROR_LOG="/tmp/monitoring-health-check-env-test-errors.log"
+
+source "$REPO_ROOT/scripts/monitoring-health-check.sh"
 
 curl() {
     printf '%s' "200"

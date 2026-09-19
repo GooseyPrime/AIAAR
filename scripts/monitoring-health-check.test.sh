@@ -4,11 +4,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-
-source "$REPO_ROOT/scripts/monitoring-health-check.sh"
-
 LOG_FILE="/tmp/monitoring-health-check-test.log"
 ERROR_LOG="/tmp/monitoring-health-check-test-errors.log"
+
+source "$REPO_ROOT/scripts/monitoring-health-check.sh"
 
 assert_success() {
     if ! "$@"; then
