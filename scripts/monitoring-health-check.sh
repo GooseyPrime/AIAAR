@@ -11,8 +11,6 @@ ERROR_LOG="$LOG_DIR/monitoring-health-check_errors.log"
 DRY_RUN=false
 TIMEOUT=10
 
-mkdir -p "$LOG_DIR"
-
 log_message() {
     local level="$1"
     shift
@@ -248,6 +246,8 @@ main() {
     if [ -n "${MONITORING_ENV_FILE:-}" ]; then
         env_file_explicit=true
     fi
+
+    mkdir -p "$(dirname "$LOG_FILE")" "$(dirname "$ERROR_LOG")"
 
     while [ "$#" -gt 0 ]; do
         case "$1" in

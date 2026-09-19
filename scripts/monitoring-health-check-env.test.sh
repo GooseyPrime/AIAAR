@@ -5,7 +5,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ENV_FILE="$(mktemp)"
-trap 'rm -f "$ENV_FILE"' EXIT
+MISSING_ENV_OUTPUT="$(mktemp)"
+LOG_FILE="$(mktemp)"
+ERROR_LOG="$(mktemp)"
+trap 'rm -f "$ENV_FILE" "$MISSING_ENV_OUTPUT" "$LOG_FILE" "$ERROR_LOG"' EXIT
 
 cat > "$ENV_FILE" <<'EOF'
 export AIRTABLE_API_KEY="test-key"
@@ -39,18 +42,15 @@ esac
 echo "monitoring-health-check env-file test passed"
 
 missing_env_file="${ENV_FILE}.missing"
-if "$REPO_ROOT/scripts/monitoring-health-check.sh" --env-file "$missing_env_file" --dry-run >/tmp/monitoring-missing-env.out 2>&1; then
+if "$REPO_ROOT/scripts/monitoring-health-check.sh" --env-file "$missing_env_file" --dry-run >"$MISSING_ENV_OUTPUT" 2>&1; then
     echo "Expected missing --env-file to fail" >&2
     exit 1
 fi
 
-case "$(cat /tmp/monitoring-missing-env.out)" in
+case "$(cat "$MISSING_ENV_OUTPUT")" in
     *"Monitoring env file not found: $missing_env_file"* ) : ;;
     * ) echo "Expected missing env-file error message" >&2; exit 1 ;;
 esac
-
-LOG_FILE="/tmp/monitoring-health-check-env-test.log"
-ERROR_LOG="/tmp/monitoring-health-check-env-test-errors.log"
 
 source "$REPO_ROOT/scripts/monitoring-health-check.sh"
 

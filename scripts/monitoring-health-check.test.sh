@@ -4,8 +4,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-LOG_FILE="/tmp/monitoring-health-check-test.log"
-ERROR_LOG="/tmp/monitoring-health-check-test-errors.log"
+LOG_FILE="$(mktemp)"
+ERROR_LOG="$(mktemp)"
+trap 'rm -f "$LOG_FILE" "$ERROR_LOG"' EXIT
 
 source "$REPO_ROOT/scripts/monitoring-health-check.sh"
 
