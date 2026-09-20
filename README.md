@@ -23,6 +23,7 @@ This project contains configuration, documentation, and helper scripts for a par
 ├── database/               # Airtable schema and setup
 ├── config/                 # Configuration templates
 ├── docs/                   # Implementation guides
+├── monitoring/             # Production monitoring runbook
 ├── scripts/                # Helper scripts
 └── examples/               # Example configurations
 ```
@@ -56,6 +57,11 @@ This project contains configuration, documentation, and helper scripts for a par
 - Runs `./scripts/setup.sh --dry-run`, then validates that the checked-in Make.com scenario JSON files are present and wired to `config.make.webhook_base_url`.
 - The dry run never calls Airtable, eBay, or OpenAI. It only reports what the live setup would do.
 
+## Production monitoring
+
+- See `monitoring/README.md` for dashboards, scenario log review, and alerting guidance.
+- Use `./scripts/monitoring-health-check.sh --dry-run` to preview the production health checks.
+
 ## Error Handling & Troubleshooting
 
 This project implements robust error handling across all automation scripts and Make.com scenarios. All shell scripts use `set -euo pipefail` and comprehensive logging to minimize silent failures.
@@ -72,6 +78,7 @@ This project implements robust error handling across all automation scripts and 
 - [API Configuration](docs/api-configuration.md)
 - [Make.com Scenarios](docs/scenarios-guide.md)
 - [Database Schema](docs/database-schema.md)
+- [Production Monitoring](monitoring/README.md)
 - [Security Guide](SECURITY.md)
 - **[Troubleshooting Guide](docs/troubleshooting.md)** ⭐ Start here for error resolution
 
