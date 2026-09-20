@@ -8,8 +8,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONFIG_FILE="$REPO_ROOT/config/environment.yml"
-CONFIG_TEMPLATE="$REPO_ROOT/config/environment.template.yml"
+CONFIG_TEMPLATE="$REPO_ROOT/config/environment.example.yml"
 ENV_FILE="$REPO_ROOT/.env"
+ENV_TEMPLATE="$REPO_ROOT/.env.example"
 LOG_DIR="$REPO_ROOT/logs"
 LOG_FILE="$LOG_DIR/setup.log"
 ERROR_LOG="$LOG_DIR/setup_errors.log"
@@ -133,7 +134,7 @@ set_if_unset() {
     local var_name="$1"
     local value="$2"
 
-    if [ -z "${!var_name:-}" ]; then
+    if [ -z "${!var_name:-}" ] || is_placeholder_value "${!var_name}"; then
         declare -gx "$var_name=$value"
     fi
 }
@@ -307,8 +308,10 @@ print_dry_run() {
         [ -f "$ENV_FILE" ] && echo "  - .env"
         [ -f "$CONFIG_FILE" ] && echo "  - config/environment.yml"
     else
-        echo "No credentials found. Copy .env.example to .env and/or config/environment.template.yml to config/environment.yml to run the live setup later."
+        echo "No credentials found. Copy .env.example to .env for API keys and, if needed, config/environment.example.yml to config/environment.yml for local non-secret overrides."
     fi
+
+    return 0
 }
 
 for arg in "$@"; do
@@ -328,6 +331,8 @@ echo "🚀 AIAAR Setup Script"
 echo "===================="
 log_message "INFO" "AIAAR Setup Script started"
 
+config_loaded=false
+
 if [ -f "$ENV_FILE" ]; then
     echo "📖 Loading .env"
     log_message "INFO" "Loading configuration from .env"
@@ -338,6 +343,7 @@ if [ -f "$CONFIG_FILE" ]; then
     echo "📖 Reading configuration from config/environment.yml"
     log_message "INFO" "Reading configuration from config/environment.yml"
     populate_from_config
+    config_loaded=true
 fi
 
 if [ "$DRY_RUN" = true ]; then
@@ -361,25 +367,69 @@ fi
 
 log_message "INFO" "All required dependencies found"
 
-if [ ! -f "$CONFIG_FILE" ] && [ ! -f "$ENV_FILE" ]; then
-    log_message "WARN" "Configuration files not found, creating template"
+initialized_env=false
+initialized_config=false
+
+if [ ! -f "$ENV_FILE" ]; then
     echo "📝 Creating environment configuration..."
-    if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
-        log_error "Failed to copy environment template"
+    if [ ! -f "$ENV_TEMPLATE" ]; then
+        log_error "Missing required example file: $ENV_TEMPLATE"
+        echo "❌ Missing required example file: .env.example" >&2
         exit 1
     fi
-    echo "✅ Environment template created at config/environment.yml"
-    echo "⚠️  Please edit config/environment.yml or .env with your API keys before continuing"
-    exit 1
+    if ! cp "$ENV_TEMPLATE" "$ENV_FILE"; then
+        log_error "Failed to copy .env example"
+        exit 1
+    fi
+    initialized_env=true
+fi
+
+if [ ! -f "$CONFIG_FILE" ]; then
+    if [ ! -f "$CONFIG_TEMPLATE" ]; then
+        log_error "Missing required example file: $CONFIG_TEMPLATE"
+        echo "❌ Missing required example file: config/environment.example.yml" >&2
+        exit 1
+    fi
+    if ! cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"; then
+        log_error "Failed to copy environment example"
+        exit 1
+    fi
+    initialized_config=true
+fi
+
+if [ "$initialized_env" = true ]; then
+    load_env_file "$ENV_FILE"
+    if [ -f "$CONFIG_FILE" ]; then
+        populate_from_config
+        config_loaded=true
+    fi
+elif [ "$config_loaded" != true ] && [ -f "$CONFIG_FILE" ]; then
+    populate_from_config
+    config_loaded=true
+fi
+
+if [ "$initialized_env" = true ] || [ "$initialized_config" = true ]; then
+    log_message "WARN" "Initialized missing local configuration files from examples"
+    echo "✅ Local environment files created:"
+    [ "$initialized_env" = true ] && echo "   - .env from .env.example"
+    [ "$initialized_config" = true ] && echo "   - config/environment.yml from config/environment.example.yml"
+    if [ "$initialized_env" = true ] && [ "$initialized_config" = true ]; then
+        echo "⚠️  Review .env for real API keys and config/environment.yml for local overrides before rerunning live setup."
+        exit 1
+    elif [ "$initialized_env" = true ]; then
+        echo "ℹ️  Continuing with values already loaded from config/environment.yml for this run."
+    elif [ "$initialized_config" = true ]; then
+        echo "ℹ️  Continuing with values already loaded from .env for this run."
+    fi
 fi
 
 log_message "INFO" "Verifying required environment variables"
 required_vars=("AIRTABLE_API_KEY" "AIRTABLE_BASE_ID" "OPENAI_API_KEY")
 for var in "${required_vars[@]}"; do
-    if [ -z "${!var:-}" ]; then
-        log_error "Required environment variable $var is not set"
-        echo "❌ Required environment variable $var is not set"
-        echo "Please update .env or config/environment.yml with your API keys"
+    if [ "$DRY_RUN" != true ] && { [ -z "${!var:-}" ] || is_placeholder_value "${!var:-}"; }; then
+        log_error "Required environment variable $var is not set to a real value"
+        echo "❌ Required environment variable $var is not set to a real value"
+        echo "Please update .env with your API keys, or config/environment.yml if you intentionally keep local credentials there"
         exit 1
     fi
     log_message "INFO" "Environment variable $var is set"
@@ -392,7 +442,7 @@ elif [ -n "${EBAY_CLIENT_ID:-}" ] && [ -n "${EBAY_CLIENT_SECRET:-}" ] && ! is_pl
 else
     log_error "Set a real EBAY_AUTH_TOKEN or non-placeholder EBAY_CLIENT_ID and EBAY_CLIENT_SECRET"
     echo "❌ Set EBAY_AUTH_TOKEN or both EBAY_CLIENT_ID and EBAY_CLIENT_SECRET to real values"
-    echo "Please update .env or config/environment.yml with your eBay credentials"
+    echo "Please update .env with your eBay credentials, or config/environment.yml if you intentionally keep local credentials there"
     exit 1
 fi
 
